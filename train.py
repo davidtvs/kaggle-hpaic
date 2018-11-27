@@ -67,7 +67,13 @@ if __name__ == "__main__":
         trainloader, testloader, output_fn=lambda x: x.max(1, keepdim=True)[1]
     )
 
-    print(best["epoch"])
-    print(best["loss"])
-    print(best["metric"]["train"][-1])
-    print(best["metric"]["val"][-1])
+    # Test predictions
+    print("Testing predictions")
+    model.load_state_dict(best["model"])
+    predictions = core.predict(
+        model, testloader, output_fn=lambda x: x.max(1, keepdim=True)[1]
+    )
+    assert isinstance(predictions, torch.Tensor), "predictions are not tensors"
+    assert predictions.size() == (len(testset), 1), "unexpected size {}".format(
+        predictions.size()
+    )

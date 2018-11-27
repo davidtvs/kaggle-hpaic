@@ -5,7 +5,7 @@ from tqdm import tqdm
 def evaluate(model, dataloader, metrics, criterion=None, output_fn=None, device=None):
     # Get the proper device
     if device is None:
-        device = "cuda:0" if torch.cuda.is_available() else "cpu"
+        device = "cuda" if torch.cuda.is_available() else "cpu"
     device = torch.device(device)
     model = model.to(device).eval()
 
@@ -37,6 +37,7 @@ def evaluate(model, dataloader, metrics, criterion=None, output_fn=None, device=
 
         metrics.add(outputs, targets)
 
+    # Return the metrics if the criterion is None; otherwise, return metrics and loss
     if criterion is None:
         out = metrics
     else:

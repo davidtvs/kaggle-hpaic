@@ -1,5 +1,4 @@
 import torch
-import numpy as np
 from tqdm import tqdm
 
 
@@ -7,14 +6,14 @@ def predict(model, dataloader, output_fn=None, device=None):
     pred_list = list(
         predict_yield_batch(model, dataloader, output_fn=output_fn, device=device)
     )
-    predictions = np.concatenate(pred_list, axis=0)
+    predictions = torch.cat(pred_list, dim=0)
 
     return predictions
 
 
 def predict_yield_batch(model, dataloader, output_fn=None, device=None):
     if device is None:
-        device = "cuda:0" if torch.cuda.is_available() else "cpu"
+        device = "cuda" if torch.cuda.is_available() else "cpu"
     device = torch.device(device)
     model = model.to(device).eval()
 
@@ -36,4 +35,4 @@ def predict_batch(model, input, output_fn=None):
         if output_fn is not None:
             outputs = output_fn(outputs)
 
-    return outputs.cpu().numpy()
+    return outputs
