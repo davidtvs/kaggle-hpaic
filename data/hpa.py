@@ -7,7 +7,10 @@ import torch
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 from torchvision.transforms import ToTensor
-from iterstrat.ml_stratifiers import MultilabelStratifiedKFold
+from iterstrat.ml_stratifiers import (
+    MultilabelStratifiedKFold,
+    MultilabelStratifiedShuffleSplit,
+)
 
 
 def get_kfold_loaders(dataset, batch_size, num_workers=4):
@@ -24,6 +27,11 @@ def get_kfold_loaders(dataset, batch_size, num_workers=4):
         list of dataloaders, one for each K-fold split.
     """
     dataloaders = {"train": [], "val": []}
+
+    # If the dataset random_state is not set, set it now to guarantee that all folds are
+    # generated in the same manner with the same data.
+    if dataset.random_state is None:
+        dataset.random_state = np.random.randint(2 ** 32 - 1)
 
     # For each split get the training and validation dataloaders and append them to the
     # dictionary
@@ -96,9 +104,9 @@ class HPADataset(Dataset):
         mode,
         filters,
         n_splits,
-        split_index,
+        split_index=0,
         transform=None,
-        data_slice=1.0,
+        subset=1.0,
         random_state=None,
     ):
         self.root_dir = root_dir
@@ -107,7 +115,7 @@ class HPADataset(Dataset):
         self.n_splits = n_splits
         self.split_index = split_index
         self.transform = transform
-        self.data_slice = data_slice
+        self.subset = subset
         self.random_state = random_state
 
         self.data_names = None
@@ -137,6 +145,9 @@ class HPADataset(Dataset):
             image_names = df["Id"].values
             targets = df["Target"].values
             targets = np.array(list(map(self._to_binary_target, targets)))
+
+            # Create a subset of the data
+            image_names, targets = self._subset(image_names, targets)
 
             # Split and stratify the training data
             mskf = MultilabelStratifiedKFold(
@@ -207,9 +218,37 @@ class HPADataset(Dataset):
 
         return bin_target
 
+    def _subset(self, X, y):
+        """Create a subset of the full dataset.
+
+        Arguments:
+            X (array-like): samples with shape (n_samples, n_features) where n_samples
+                is the number of samples and n_features is the number of features.
+            y (array-like): the target variable for supervised learning problems.
+                Multilabel stratification is done based on the y labels.
+                Shape: (n_samples, n_labels).
+
+        Returns:
+            (numpy.ndarray, numpy.ndarray): the subset of X and y.
+        """
+        if self.subset == 1:
+            return X, y
+
+        msss = MultilabelStratifiedShuffleSplit(
+            n_splits=1,
+            train_size=self.subset,
+            test_size=None,
+            random_state=self.random_state,
+        )
+
+        # Index 0 gives a tuple of the train and test indices. The seconand index 0
+        # returns the train indices which corresponds to self.subset of the initial data
+        subset_idx = list(msss.split(X, y))[0][0]
+        return X[subset_idx], y[subset_idx]
+
     def _get_image(self, name):
         """Gets an image given its name.
-        
+
         Arguments:
             name (string): the image filename.
 
@@ -262,18 +301,65 @@ class HPADataset(Dataset):
 
 
 if __name__ == "__main__":
-    dataset = HPADataset("../../dataset/", "train", "rygb", 3, 0, random_state=92)
+    print("HPADataset('../../dataset/', 'train', 'rygb', 3, random_state=92)")
+    dataset = HPADataset("../../dataset/", "train", "rygb", 3, random_state=92)
     dataloaders = get_kfold_loaders(dataset, 2)
     for dataloader in dataloaders["train"]:
         data = dataloader.dataset
         print("Fold: {}/{}".format(data.split_index + 1, data.n_splits))
-        print("Dataset info")
-        print(data.data_names)
-        print(data.targets)
+        print("Dataset info:")
+        print("Size:", len(data))
+        print("random_state", data.random_state)
+        print("data_names", data.data_names[0])
+        print("targets", data.targets[0])
         print()
-        print("Batch info")
+        print("Batch info:")
         batch = next(iter(dataloader))
-        print(batch["sample_name"])
-        print(batch["sample"].size())
-        print(batch["target"].size())
+        print("sample_name", batch["sample_name"])
+        print("sample_size", batch["sample"].size())
+        print("target size", batch["target"].size())
+        print()
+
+    print("-" * 80)
+    print("HPADataset('../../dataset/', 'train', 'rygb', 3)")
+    dataset = HPADataset("../../dataset/", "train", "rygb", 3)
+    dataloaders = get_kfold_loaders(dataset, 2)
+    for dataloader in dataloaders["train"]:
+        data = dataloader.dataset
+        print("Fold: {}/{}".format(data.split_index + 1, data.n_splits))
+        print("Dataset info:")
+        print("Size:", len(data))
+        print("random_state", data.random_state)
+        print("data_names", data.data_names[0])
+        print("targets", data.targets[0])
+        print()
+        print("Batch info:")
+        batch = next(iter(dataloader))
+        print("sample_name", batch["sample_name"])
+        print("sample_size", batch["sample"].size())
+        print("target size", batch["target"].size())
+        print()
+
+    print("-" * 80)
+    print(
+        "HPADataset('../../dataset/', 'train', 'rygb', 3, subset=0.2, random_state=92)"
+    )
+    dataset = HPADataset(
+        "../../dataset/", "train", "rygb", 3, subset=0.2, random_state=92
+    )
+    dataloaders = get_kfold_loaders(dataset, 2)
+    for dataloader in dataloaders["train"]:
+        data = dataloader.dataset
+        print("Fold: {}/{}".format(data.split_index + 1, data.n_splits))
+        print("Dataset info:")
+        print("Size:", len(data))
+        print("random_state", data.random_state)
+        print("data_names", data.data_names[0])
+        print("targets", data.targets[0])
+        print()
+        print("Batch info:")
+        batch = next(iter(dataloader))
+        print("sample_name", batch["sample_name"])
+        print("sample_size", batch["sample"].size())
+        print("target size", batch["target"].size())
         print()
