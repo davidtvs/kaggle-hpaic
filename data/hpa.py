@@ -3,10 +3,9 @@ import pandas as pd
 import numpy as np
 from copy import deepcopy
 from PIL import Image
-import torch
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
-from torchvision.transforms import ToTensor
+from transforms import to_tensor
 from iterstrat.ml_stratifiers import (
     MultilabelStratifiedKFold,
     MultilabelStratifiedShuffleSplit,
@@ -105,7 +104,7 @@ class HPADataset(Dataset):
         filters,
         n_splits,
         split_index=0,
-        transform=None,
+        transform=to_tensor,
         subset=1.0,
         random_state=None,
     ):
@@ -191,11 +190,7 @@ class HPADataset(Dataset):
         image = self._get_image(data_name)
         target = self.targets[index]
 
-        if self.transform:
-            image, target = self.transform(image, target)
-        else:
-            image = ToTensor()(image)
-            target = torch.tensor(target)
+        image, target = self.transform(image, target)
 
         return {"sample": image, "target": target, "sample_name": data_name}
 
@@ -298,68 +293,3 @@ class HPADataset(Dataset):
         g_mix[g > 0] = g[g > 0]
 
         return [r_mix, g_mix, b]
-
-
-if __name__ == "__main__":
-    print("HPADataset('../../dataset/', 'train', 'rygb', 3, random_state=92)")
-    dataset = HPADataset("../../dataset/", "train", "rygb", 3, random_state=92)
-    dataloaders = get_kfold_loaders(dataset, 2)
-    for dataloader in dataloaders["train"]:
-        data = dataloader.dataset
-        print("Fold: {}/{}".format(data.split_index + 1, data.n_splits))
-        print("Dataset info:")
-        print("Size:", len(data))
-        print("random_state", data.random_state)
-        print("data_names", data.data_names[0])
-        print("targets", data.targets[0])
-        print()
-        print("Batch info:")
-        batch = next(iter(dataloader))
-        print("sample_name", batch["sample_name"])
-        print("sample_size", batch["sample"].size())
-        print("target size", batch["target"].size())
-        print()
-
-    print("-" * 80)
-    print("HPADataset('../../dataset/', 'train', 'rygb', 3)")
-    dataset = HPADataset("../../dataset/", "train", "rygb", 3)
-    dataloaders = get_kfold_loaders(dataset, 2)
-    for dataloader in dataloaders["train"]:
-        data = dataloader.dataset
-        print("Fold: {}/{}".format(data.split_index + 1, data.n_splits))
-        print("Dataset info:")
-        print("Size:", len(data))
-        print("random_state", data.random_state)
-        print("data_names", data.data_names[0])
-        print("targets", data.targets[0])
-        print()
-        print("Batch info:")
-        batch = next(iter(dataloader))
-        print("sample_name", batch["sample_name"])
-        print("sample_size", batch["sample"].size())
-        print("target size", batch["target"].size())
-        print()
-
-    print("-" * 80)
-    print(
-        "HPADataset('../../dataset/', 'train', 'rygb', 3, subset=0.2, random_state=92)"
-    )
-    dataset = HPADataset(
-        "../../dataset/", "train", "rygb", 3, subset=0.2, random_state=92
-    )
-    dataloaders = get_kfold_loaders(dataset, 2)
-    for dataloader in dataloaders["train"]:
-        data = dataloader.dataset
-        print("Fold: {}/{}".format(data.split_index + 1, data.n_splits))
-        print("Dataset info:")
-        print("Size:", len(data))
-        print("random_state", data.random_state)
-        print("data_names", data.data_names[0])
-        print("targets", data.targets[0])
-        print()
-        print("Batch info:")
-        batch = next(iter(dataloader))
-        print("sample_name", batch["sample_name"])
-        print("sample_size", batch["sample"].size())
-        print("target size", batch["target"].size())
-        print()
