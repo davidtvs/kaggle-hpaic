@@ -37,15 +37,14 @@ if __name__ == "__main__":
     image_size = (config["img_h"], config["img_w"])
     dataset = data.HPADataset(
         config["dataset_dir"],
-        "train",
         config["image_mode"],
-        config["n_splits"],
         transform=tf.Augmentation(image_size),
         subset=config["subset"],
         random_state=92,
     )
-    dataloaders = data.get_kfold_loaders(
-        dataset, config["batch_size"], num_workers=config["workers"]
+    ksets = data.kfold_split(dataset, config["n_splits"], random_state=92)
+    dataloaders = data.kfold_loader(
+        ksets, config["batch_size"], num_workers=config["workers"]
     )
 
     net = model.resnet(config["resnet_size"], num_classes)

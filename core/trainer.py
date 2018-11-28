@@ -207,10 +207,8 @@ class KFoldTrainer(object):
 
     def fit(self, dataloaders, output_fn=None):
         # Zip the dataloaders for cleaner iteration
-        train_loaders = dataloaders["train"]
-        val_loaders = dataloaders["val"]
-        n_folds = len(train_loaders)
-        loaders = zip(train_loaders, val_loaders)
+        n_folds = len(dataloaders["train"])
+        loaders = zip(*dataloaders.values())
         for k, (train_loader, val_loader) in enumerate(loaders):
             print()
             print("-" * 80)

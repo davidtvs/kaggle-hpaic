@@ -1,9 +1,8 @@
 import os
 import pandas as pd
 import numpy as np
-from copy import deepcopy
 from PIL import Image
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, Subset
 from torch.utils.data import DataLoader
 from .transforms import to_tensor
 from iterstrat.ml_stratifiers import (
@@ -12,7 +11,24 @@ from iterstrat.ml_stratifiers import (
 )
 
 
-def get_kfold_loaders(dataset, batch_size, num_workers=4):
+def kfold_loader(subsets, batch_size, num_workers=4):
+    # The dataloaders will be stored in this dictionary
+    dataloaders = {"train": [], "val": []}
+
+    for train, val in zip(*subsets.values()):
+        tmp = DataLoader(
+            train, batch_size=batch_size, shuffle=True, num_workers=num_workers
+        )
+        dataloaders["train"].append(tmp)
+        tmp = DataLoader(
+            val, batch_size=batch_size, shuffle=False, num_workers=num_workers
+        )
+        dataloaders["val"].append(tmp)
+
+    return dataloaders
+
+
+def kfold_split(dataset, n_splits, random_state=None):
     """Returns a dictionary of training and validation dataloaders.
 
     Arguments:
@@ -25,30 +41,41 @@ def get_kfold_loaders(dataset, batch_size, num_workers=4):
         dict: a disctionary with keys 'train' and 'val'. Each dictionary key contains a
         list of dataloaders, one for each K-fold split.
     """
-    dataloaders = {"train": [], "val": []}
+    # Get samples and targets arrays
+    X = dataset.sample_names
+    y = dataset.targets
 
-    # If the dataset random_state is not set, set it now to guarantee that all folds are
-    # generated in the same manner with the same data.
-    if dataset.random_state is None:
-        dataset.random_state = np.random.randint(2 ** 32 - 1)
+    # The subsets will be stored in this dictionary
+    subsets = {"train": [], "val": []}
 
-    # For each split get the training and validation dataloaders and append them to the
-    # dictionary
-    for k in range(dataset.n_splits):
-        for mode, shuffle in [("train", True), ("val", False)]:
-            dataset.set_mode(mode, k)
+    # Split and stratify the training data into k-folds
+    mskf = MultilabelStratifiedKFold(n_splits=n_splits, random_state=random_state)
+    for train_indices, val_indices in mskf.split(X, y):
+        subsets["train"].append(Subset(dataset, train_indices))
+        subsets["val"].append(Subset(dataset, val_indices))
 
-            # Pass a deepcopy of the dataset to the dataloader, otherwise all
-            # dataloaders will point to the same object
-            dataloader_tmp = DataLoader(
-                deepcopy(dataset),
-                batch_size=batch_size,
-                shuffle=shuffle,
-                num_workers=num_workers,
-            )
-            dataloaders[mode].append(dataloader_tmp)
+    return subsets
 
-    return dataloaders
+
+def train_val_loader(train_set, val_set, batch_size, num_workers=4):
+    train_loader = DataLoader(train_set, batch_size=batch_size, num_workers=num_workers)
+    val_loader = DataLoader(train_set, batch_size=batch_size, num_workers=num_workers)
+
+    return train_loader, val_loader
+
+
+def train_val_split(dataset, val_size=0.2, random_state=None):
+    # Get samples and targets arrays
+    X = dataset.sample_names
+    y = dataset.targets
+
+    # Stratified split; msss.split returns a single element generator
+    msss = MultilabelStratifiedShuffleSplit(
+        n_splits=1, test_size=val_size, random_state=random_state
+    )
+    train_indices, val_indices = list(msss.split(X, y))[0]
+
+    return Subset(dataset, train_indices), Subset(dataset, val_indices)
 
 
 class HPADataset(Dataset):
@@ -100,79 +127,45 @@ class HPADataset(Dataset):
     def __init__(
         self,
         root_dir,
-        mode,
         filters,
-        n_splits,
-        split_index=0,
+        is_training=True,
         transform=to_tensor,
         subset=1.0,
         random_state=None,
     ):
         self.root_dir = root_dir
-        self.mode = mode.lower()
+        self.is_training = is_training
         self.filters = filters.lower()
-        self.n_splits = n_splits
-        self.split_index = split_index
         self.transform = transform
         self.subset = subset
         self.random_state = random_state
 
-        self.data_names = None
+        self.sample_names = None
         self.data_dir = None
         self.targets = None
 
-        self.set_mode(mode, split_index)
-
-    def set_mode(self, mode, split_index):
-        self.mode = mode.lower()
-        if 0 <= split_index < self.n_splits:
-            self.split_index = split_index
-        else:
-            raise ValueError(
-                "split_index out of range [0, {}], got {}".format(
-                    self.n_splits - 1, split_index
-                )
-            )
-
         # Handle selected mode
-        if self.mode in ("train", "val"):
+        if self.is_training:
+            self.data_dir = os.path.join(self.root_dir, self.train_dir)
+
             # Load training CSV
             csv_path = os.path.join(self.root_dir, self.target_csv_file)
             df = pd.read_csv(csv_path)
 
-            # Split the data frame into two arrays: image names and target
+            # Split the data frame into two arrays: image_names and targets
             image_names = df["Id"].values
             targets = df["Target"].values
             targets = np.array(list(map(self._to_binary_target, targets)))
 
             # Create a subset of the data
-            image_names, targets = self._subset(image_names, targets)
-
-            # Split and stratify the training data
-            mskf = MultilabelStratifiedKFold(
-                n_splits=self.n_splits, random_state=self.random_state
-            )
-            kfold_splits = list(mskf.split(image_names, targets))
-            train_indices = kfold_splits[split_index][0]
-            val_indices = kfold_splits[split_index][1]
-
-            # Set the appropriate data and targets
-            self.data_dir = os.path.join(self.root_dir, self.train_dir)
-            if self.mode == "train":
-                self.data_names = image_names[train_indices]
-                self.targets = targets[train_indices]
-            else:
-                self.data_names = image_names[val_indices]
-                self.targets = targets[val_indices]
-        elif mode == "test":
+            self.sample_names, self.targets = self._subset(image_names, targets)
+        else:
             # Get the list of images from the test directory
             self.data_dir = os.path.join(self.root_dir, self.test_dir)
-            self.data_names = sorted(os.listdir(self.data_dir))
+            self.sample_names = sorted(os.listdir(self.data_dir))
 
             # The test set ground-truth is not public
             self.targets = None
-        else:
-            raise ValueError("invalid mode; supported modes are: train, val and test")
 
     def __getitem__(self, index):
         """Gets a single item from the dataset.
@@ -186,17 +179,17 @@ class HPADataset(Dataset):
             label, and 'sample_name' contains the sample filename.
 
         """
-        data_name = self.data_names[index]
-        image = self._get_image(data_name)
+        sample_name = self.sample_names[index]
+        image = self._get_image(sample_name)
         target = self.targets[index]
 
         image, target = self.transform(image, target)
 
-        return {"sample": image, "target": target, "sample_name": data_name}
+        return {"sample": image, "target": target, "sample_name": sample_name}
 
     def __len__(self):
         """Returns the length of the dataset."""
-        return len(self.data_names)
+        return len(self.sample_names)
 
     def _to_binary_target(self, target_str):
         """Converts a label from the CSV file to its binary representation.
