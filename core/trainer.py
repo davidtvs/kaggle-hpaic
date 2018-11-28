@@ -17,7 +17,7 @@ class Trainer:
         lr_scheduler=None,
         checkpoint_path=None,
         mode="min",
-        patience=20,
+        stop_patience=20,
         threshold=1e-4,
         device=None,
     ):
@@ -37,7 +37,7 @@ class Trainer:
             raise TypeError("invalid 'metrics' type")
 
         # Initialize early stopping and trainer checkpoint
-        self.early_stop = EarlyStopping(patience, mode, threshold)
+        self.early_stop = EarlyStopping(stop_patience, mode, threshold)
         self.trainer_checkpoint = Checkpoint(checkpoint_path, mode, threshold)
 
         # If device is None select GPU if available; otherwise, select CPU
@@ -103,9 +103,11 @@ class Trainer:
         self.metrics.reset()
 
         # Iterate over data.
-        for step, (inputs, targets) in enumerate(tqdm(dataloader)):
+        for step, batch_dict in enumerate(tqdm(dataloader)):
             # Move data to the proper device
+            inputs = batch_dict["sample"]
             inputs = inputs.to(self.device)
+            targets = batch_dict["target"]
             targets = targets.to(self.device)
 
             # Run a single iteration
@@ -197,3 +199,25 @@ class Trainer:
             for k, v in state.items():
                 if torch.is_tensor(v):
                     state[k] = v.to(self.device)
+
+
+class KFoldTrainer(object):
+    def __init__(self, *args, **kwargs):
+        self.trainer = Trainer(*args, **kwargs)
+
+    def fit(self, dataloaders, output_fn=None):
+        # Zip the dataloaders for cleaner iteration
+        train_loaders = dataloaders["train"]
+        val_loaders = dataloaders["val"]
+        n_folds = len(train_loaders)
+        loaders = zip(train_loaders, val_loaders)
+        for k, (train_loader, val_loader) in enumerate(loaders):
+            print()
+            print("-" * 80)
+            print("Fold {}/{}".format(k + 1, n_folds))
+            print("-" * 80)
+            print()
+            # Clone the untrained Trainer class so we can train from sratch every fold
+            trainer = deepcopy(self.trainer)
+            trainer.fit(train_loader, val_loader, output_fn=output_fn)
+            print()

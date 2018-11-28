@@ -1,60 +1,73 @@
-import torch
+import os
 import torch.nn as nn
 import torch.optim as optim
-import torchvision.transforms as transforms
-from torch.utils.data import DataLoader
-from torchvision.datasets import CIFAR10
+from argparse import ArgumentParser
 import core
-import metric
+import data
+import data.transforms as tf
 import model
+import metric
+import utils
 
-data_pwd = "../data"
-batch_size = 256
-num_epochs = 5
-num_classes = 10
+
+def arguments():
+    parser = ArgumentParser(
+        description="Human Protein Atlas Image Classification training script"
+    )
+    parser.add_argument(
+        "--config",
+        "-c",
+        type=str,
+        default="config/example_train.json",
+        help="Path to the JSON configuration file. Default: config/example_train.json",
+    )
+
+    return parser.parse_args()
+
 
 if __name__ == "__main__":
-    transform = transforms.Compose(
-        [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
+    random_state = 92
+    num_classes = 28
+
+    # Get script arguments and JSON configuration
+    args = arguments()
+    config = utils.load_config(args.config)
+
+    # Initialize the dataset and get the K-fold dataloaders
+    image_size = (config["img_h"], config["img_w"])
+    dataset = data.HPADataset(
+        config["dataset_dir"],
+        "train",
+        config["image_mode"],
+        config["n_splits"],
+        transform=tf.Augmentation(image_size),
+        subset=config["subset"],
+        random_state=92,
+    )
+    dataloaders = data.get_kfold_loaders(
+        dataset, config["batch_size"], num_workers=config["workers"]
     )
 
-    trainset = CIFAR10(data_pwd, train=True, download=True, transform=transform)
-    trainloader = DataLoader(
-        trainset, batch_size=batch_size, shuffle=True, num_workers=2
-    )
-
-    testset = CIFAR10(data_pwd, train=False, download=True, transform=transform)
-    testloader = DataLoader(
-        testset, batch_size=batch_size * 2, shuffle=False, num_workers=2
-    )
-
-    net = model.resnet(18, num_classes)
+    net = model.resnet(config["resnet_size"], num_classes)
     print(net)
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(net.parameters(), lr=0.01)
+
+    criterion = nn.BCEWithLogitsLoss()
+    optimizer = optim.Adam(net.parameters(), lr=config["lr_rate"])
     metrics = metric.MetricList([metric.Accuracy()])
 
-    train = core.Trainer(
+    # Location where the model checkpoints will be saved
+    checkpoint_dir = os.path.join(config["checkpoint_dir"], config["name"])
+    checkpoint_path = os.path.join(checkpoint_dir, config["name"] + ".pth")
+
+    train = core.KFoldTrainer(
         net,
-        num_epochs,
+        config["epochs"],
         optimizer,
         criterion,
         metrics,
-        checkpoint_path="./model.pth",
+        checkpoint_path=checkpoint_path,
         mode="max",
-        patience=2,
+        stop_patience=config["stop_patience"],
+        device=config["device"],
     )
-    best, _ = train.fit(
-        trainloader, testloader, output_fn=lambda x: x.max(dim=1, keepdim=True)[1]
-    )
-
-    # Test predictions
-    print("Testing predictions")
-    net.load_state_dict(best["model"])
-    predictions = core.predict(
-        net, testloader, output_fn=lambda x: x.max(dim=1, keepdim=True)[1]
-    )
-    assert isinstance(predictions, torch.Tensor), "predictions are not tensors"
-    assert predictions.size() == (len(testset), 1), "unexpected size {}".format(
-        predictions.size()
-    )
+    best, _ = train.fit(dataloaders, output_fn=lambda x: x.max(dim=1, keepdim=True)[1])

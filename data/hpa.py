@@ -5,7 +5,7 @@ from copy import deepcopy
 from PIL import Image
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
-from transforms import to_tensor
+from .transforms import to_tensor
 from iterstrat.ml_stratifiers import (
     MultilabelStratifiedKFold,
     MultilabelStratifiedShuffleSplit,

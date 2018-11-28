@@ -1,5 +1,5 @@
 from .early_stop import EarlyStopping
 from .checkpoint import Checkpoint
-from .trainer import Trainer
+from .trainer import Trainer, KFoldTrainer
 from .predict import predict, predict_batch, predict_yield_batch
 from .evaluate import evaluate
