@@ -2,9 +2,11 @@ import os
 import pandas as pd
 import numpy as np
 from copy import deepcopy
+from PIL import Image
+import torch
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
-from PIL import Image
+from torchvision.transforms import ToTensor
 from iterstrat.ml_stratifiers import MultilabelStratifiedKFold
 
 
@@ -82,25 +84,35 @@ class HPADataset(Dataset):
         27: "Rods & rings",
     }
 
+    # Filter code to filter name
+    filter_dict = {"r": "red", "g": "green", "b": "blue", "y": "yellow"}
+
+    # Image extension
+    ext = ".png"
+
     def __init__(
         self,
         root_dir,
         mode,
+        filters,
         n_splits,
         split_index,
         transform=None,
-        target_transform=None,
         data_slice=1.0,
         random_state=None,
     ):
         self.root_dir = root_dir
         self.mode = mode.lower()
+        self.filters = filters.lower()
         self.n_splits = n_splits
         self.split_index = split_index
         self.transform = transform
-        self.target_transform = target_transform
         self.data_slice = data_slice
         self.random_state = random_state
+
+        self.data_names = None
+        self.data_dir = None
+        self.targets = None
 
         self.set_mode(mode, split_index)
 
@@ -135,6 +147,7 @@ class HPADataset(Dataset):
             val_indices = kfold_splits[split_index][1]
 
             # Set the appropriate data and targets
+            self.data_dir = os.path.join(self.root_dir, self.train_dir)
             if self.mode == "train":
                 self.data_names = image_names[train_indices]
                 self.targets = targets[train_indices]
@@ -143,8 +156,8 @@ class HPADataset(Dataset):
                 self.targets = targets[val_indices]
         elif mode == "test":
             # Get the list of images from the test directory
-            data_dir = os.path.join(self.root_dir, self.test_dir)
-            self.data_names = sorted(os.listdir(data_dir))
+            self.data_dir = os.path.join(self.root_dir, self.test_dir)
+            self.data_names = sorted(os.listdir(self.data_dir))
 
             # The test set ground-truth is not public
             self.targets = None
@@ -158,30 +171,109 @@ class HPADataset(Dataset):
             index (int): index of the item in the dataset
 
         Returns:
-            dict: a dictionary with two keys, 'sample' and 'target'; 'sample' contains a
-            `PIL.Image` object and 'target' a `torch.Tensor`.
+            dict: a dictionary with three keys, 'sample', 'target', and 'sample_name';
+            'sample' contains the training sample, 'target' contains the ground-truth
+            label, and 'sample_name' contains the sample filename.
 
         """
-        raise NotImplementedError
+        data_name = self.data_names[index]
+        image = self._get_image(data_name)
+        target = self.targets[index]
+
+        if self.transform:
+            image, target = self.transform(image, target)
+        else:
+            image = ToTensor()(image)
+            target = torch.tensor(target)
+
+        return {"sample": image, "target": target, "sample_name": data_name}
 
     def __len__(self):
-        """Returns the length of the data_pathset."""
+        """Returns the length of the dataset."""
         return len(self.data_names)
 
     def _to_binary_target(self, target_str):
+        """Converts a label from the CSV file to its binary representation.
+
+        Arguments:
+            target_str (string): the label from the CSV file.
+
+        Returns:
+            numpy.ndarray: the binary representation of `target_str`.
+        """
         int_target = np.array(target_str.split(" "), dtype=int)
         bin_target = np.zeros(len(self.label_to_name))
         bin_target[int_target] = 1
 
         return bin_target
 
+    def _get_image(self, name):
+        """Gets an image given its name.
+        
+        Arguments:
+            name (string): the image filename.
+
+        Returns:
+            PIL.Image: the image with shape (H, W, C)
+        """
+        # Split the self.filters string character by character
+        filters = list(self.filters)
+
+        # Iterate over the split list of self.filters and load the filter that matches
+        # the character to a list of numpy arrays
+        img_filters = []
+        for f in filters:
+            img_name = name + "_" + self.filter_dict[f] + self.ext
+            path = os.path.join(self.data_dir, img_name)
+            img = Image.open(path)
+            img_np = np.asarray(img, dtype=np.uint8)
+            img_filters.append(img_np)
+
+        # Mix the yellow filter with the red and green if self.filters is "rygb"
+        if self.filters == "rygb":
+            img_filters = self._mix_yellow(*img_filters)
+
+        img_np = np.stack(img_filters, axis=-1).squeeze()
+
+        return Image.fromarray(img_np)
+
+    def _mix_yellow(self, r, y, g, b):
+        """Mixes the yellow channel with the red and green channels.
+
+        Arguments:
+            r (numpy.ndarray): the red channel.
+            y (numpy.ndarray): the yellow channel.
+            g (numpy.ndarray): the green channel.
+            b (numpy.ndarray): the blue channel.
+
+        Returns:
+            list: [r, g, b] where r, g, and b are numpy.ndarray.
+        """
+        # Set the red and green channels with the yellow filter values. Must be a copy
+        # else it'll bind a new name to y
+        r_mix = np.copy(y)
+        g_mix = np.copy(y)
+
+        # Override the red and green channels with the corresponding filters
+        r_mix[r > 0] = r[r > 0]
+        g_mix[g > 0] = g[g > 0]
+
+        return [r_mix, g_mix, b]
+
 
 if __name__ == "__main__":
-    dataset = HPADataset("../../dataset/", "train", 3, 0, random_state=92)
+    dataset = HPADataset("../../dataset/", "train", "rygb", 3, 0, random_state=92)
     dataloaders = get_kfold_loaders(dataset, 2)
     for dataloader in dataloaders["train"]:
-        tmp = dataloader.dataset
-        print("Fold: {}/{}".format(tmp.split_index + 1, tmp.n_splits))
-        print(tmp.data_names)
-        print(tmp.targets)
+        data = dataloader.dataset
+        print("Fold: {}/{}".format(data.split_index + 1, data.n_splits))
+        print("Dataset info")
+        print(data.data_names)
+        print(data.targets)
+        print()
+        print("Batch info")
+        batch = next(iter(dataloader))
+        print(batch["sample_name"])
+        print(batch["sample"].size())
+        print(batch["target"].size())
         print()
