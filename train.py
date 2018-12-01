@@ -99,7 +99,6 @@ if __name__ == "__main__":
 
     # Location where the model checkpoints will be saved
     checkpoint_dir = os.path.join(config["checkpoint_dir"], config["name"])
-    checkpoint_path = os.path.join(checkpoint_dir, config["name"] + ".pth")
 
     train = core.KFoldTrainer(
         net,
@@ -107,7 +106,6 @@ if __name__ == "__main__":
         optimizer,
         criterion,
         metrics,
-        checkpoint_path=checkpoint_path,
         mode="max",
         stop_patience=config["stop_patience"],
         device=config["device"],

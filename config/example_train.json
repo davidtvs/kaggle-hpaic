@@ -1,6 +1,6 @@
 {
     "batch_size": 16,
-    "checkpoint_dir": "checkpoints",
+    "checkpoint_dir": "checkpoint",
     "dataset_dir": "../dataset/",
     "dataset_info": false,
     "device": "cuda",

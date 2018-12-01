@@ -15,7 +15,7 @@ class Trainer:
         criterion,
         metrics,
         lr_scheduler=None,
-        checkpoint_path=None,
+        checkpoint_dir=".",
         mode="min",
         stop_patience=20,
         threshold=1e-4,
@@ -38,7 +38,7 @@ class Trainer:
 
         # Initialize early stopping and trainer checkpoint
         self.early_stop = EarlyStopping(stop_patience, mode, threshold)
-        self.trainer_checkpoint = Checkpoint(checkpoint_path, mode, threshold)
+        self.trainer_checkpoint = Checkpoint(checkpoint_dir, mode, threshold)
 
         # If device is None select GPU if available; otherwise, select CPU
         if device is None:
@@ -55,29 +55,19 @@ class Trainer:
         for self.epoch in range(self.start_epoch, self.num_epochs + 1):
             print("Epoch {}/{}".format(self.epoch, self.num_epochs))
             print("-" * 80)
-
             print("Training")
             epoch_loss = self._run_epoch(
                 train_dataloader, is_training=True, output_fn=output_fn
             )
-
-            # Track loss and metrics history
-            # Append a copy of the metrics else all elements point to the same object
-            self.loss_history["train"].append(epoch_loss)
-            self.metric_history["train"].append(deepcopy(self.metrics))
-            print("loss: {:.4f} {}".format(epoch_loss, self.metrics))
+            print("Loss: {:.4f}".format(epoch_loss))
+            print("Metrics: {}".format(self.metrics))
             print()
-
             print("Validation")
             epoch_loss = self._run_epoch(
                 val_dataloader, is_training=False, output_fn=output_fn
             )
-
-            # Track loss and metrics history
-            # Append a copy of the metrics else all elements point to the same object
-            self.loss_history["val"].append(epoch_loss)
-            self.metric_history["val"].append(deepcopy(self.metrics))
-            print("loss: {:.4f} {}".format(epoch_loss, self.metrics))
+            print("Loss: {:.4f}".format(epoch_loss))
+            print("Metrics: {}".format(self.metrics))
             print()
 
             # Check if we have to stop early
@@ -95,8 +85,10 @@ class Trainer:
         # Set model to training mode if training; otherwise, set it to evaluation mode
         if is_training:
             self.model.train()
+            mode = "train"
         else:
             self.model.eval()
+            mode = "val"
 
         # Initialize running metrics
         running_loss = 0.0
@@ -117,6 +109,11 @@ class Trainer:
             running_loss += step_loss
 
         epoch_loss = running_loss / len(dataloader.dataset)
+
+        # Track loss and metrics history
+        # Append a copy of the metrics else all elements point to the same object
+        self.loss_history[mode].append(epoch_loss)
+        self.metric_history[mode].append(deepcopy(self.metrics))
 
         if not is_training:
             # Assume the main metric is the first one

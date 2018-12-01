@@ -20,7 +20,7 @@ class Metric(object):
         raise NotImplementedError
 
     def __str__(self):
-        return "{}: {:.4f}".format(self.name, self.value())
+        return str((self.name, round(self.value(), 4)))
 
 
 class MetricList(object):
@@ -64,5 +64,4 @@ class MetricList(object):
         return len(self.metrics)
 
     def __str__(self):
-        str_list = [str(m) for m in self.metrics]
-        return " - ".join(str_list)
+        return str([(m.name, round(m.value(), 4)) for m in self.metrics])
