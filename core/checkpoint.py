@@ -1,6 +1,7 @@
 import os
 import errno
 import json
+from copy import deepcopy
 import torch
 import numpy as np
 
@@ -51,11 +52,14 @@ class Checkpoint(object):
 
         """
         if self.cmp_op(metric - self.threshold, self.best_metric):
-            self.best_metric = metric
-            self.best_checkpoint = checkpoint
+            # Make a copy of the metrics and checkpoint to isolate them
+            self.best_metric = deepcopy(metric)
+            self.best_checkpoint = deepcopy(checkpoint)
             torch.save(checkpoint, self.model_path)
             self._save_history(
-                checkpoint["epoch"], checkpoint["loss"], checkpoint["metric"]
+                self.best_checkpoint["epoch"],
+                self.best_checkpoint["loss"],
+                self.best_checkpoint["metric"],
             )
 
     def _save_history(self, epoch, loss, metric):
