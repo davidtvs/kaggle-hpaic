@@ -1,4 +1,6 @@
+import os
 import torch
+import numpy as np
 from tqdm import tqdm
 from copy import deepcopy
 from .early_stop import EarlyStopping
@@ -75,11 +77,7 @@ class Trainer:
                 print("Epoch {}: early stopping".format(self.epoch))
                 break
 
-        # Return the current state and the best state/checkpoint
-        current_state = self._get_state()
-        best_state = self.trainer_checkpoint.best_checkpoint
-
-        return (best_state, current_state)
+        return self.trainer_checkpoint.best_checkpoint
 
     def _run_epoch(self, dataloader, is_training, output_fn=None):
         # Set model to training mode if training; otherwise, set it to evaluation mode
@@ -173,7 +171,8 @@ class Trainer:
 
         return checkpoint
 
-    def resume(self, checkpoint_path):
+    def resume(self, checkpoint_dir):
+        checkpoint_path = os.path.join(checkpoint_dir, "model.pth")
         saved_trainer = torch.load(checkpoint_path, map_location=torch.device("cpu"))
 
         # Load the states from the checkpoint
@@ -200,9 +199,13 @@ class Trainer:
 
 class KFoldTrainer(object):
     def __init__(self, *args, **kwargs):
-        self.trainer = Trainer(*args, **kwargs)
+        self.args = args
+        self.kwargs = kwargs
 
     def fit(self, dataloaders, output_fn=None):
+        # Lists that will store the best checkpoints for each fold
+        checkpoints = []
+
         # Zip the dataloaders for cleaner iteration
         n_folds = len(dataloaders["train"])
         loaders = zip(*dataloaders.values())
@@ -212,7 +215,23 @@ class KFoldTrainer(object):
             print("Fold {}/{}".format(k + 1, n_folds))
             print("-" * 80)
             print()
-            # Clone the untrained Trainer class so we can train from sratch every fold
-            trainer = deepcopy(self.trainer)
-            trainer.fit(train_loader, val_loader, output_fn=output_fn)
+
+            # Create a new trainer object that to train from scratch. Checkpoints
+            # from each fold are saved in different directories
+            kwargs = deepcopy(self.kwargs)
+            fold_dir = "fold_{}".format(k + 1)
+            kwargs["checkpoint_dir"] = os.path.join(kwargs["checkpoint_dir"], fold_dir)
+            trainer = Trainer(*self.args, **kwargs)
+            best = trainer.fit(train_loader, val_loader, output_fn=output_fn)
+            checkpoints.append(best)
             print()
+
+        # Compute the average score for each metric
+        scores = []
+        for checkpoint in checkpoints:
+            scores.append(checkpoint["metric"]["val"][-1].value())
+
+        avg_scores = np.mean(scores, axis=0)
+        print("Average scores: {}".format(np.round(avg_scores, 4).tolist()))
+
+        return checkpoints, avg_scores

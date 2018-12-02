@@ -106,8 +106,9 @@ if __name__ == "__main__":
         optimizer,
         criterion,
         metrics,
+        checkpoint_dir=checkpoint_dir,
         mode="max",
         stop_patience=config["stop_patience"],
         device=config["device"],
     )
-    best, _ = train.fit(dataloaders, output_fn=sigmoid_threshold)
+    train.fit(dataloaders, output_fn=sigmoid_threshold)
