@@ -100,7 +100,7 @@ if __name__ == "__main__":
     # Location where the model checkpoints will be saved
     checkpoint_dir = os.path.join(config["checkpoint_dir"], config["name"])
 
-    train = core.KFoldTrainer(
+    trainer = core.KFoldTrainer(
         net,
         config["epochs"],
         optimizer,
@@ -111,4 +111,6 @@ if __name__ == "__main__":
         stop_patience=config["stop_patience"],
         device=config["device"],
     )
-    train.fit(dataloaders, output_fn=sigmoid_threshold)
+    if config["resume"] and os.path.isdir(config["resume"]):
+        trainer.resume(config["resume"])
+    trainer.fit(dataloaders, output_fn=sigmoid_threshold)

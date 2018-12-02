@@ -182,9 +182,13 @@ class Trainer:
         if saved_trainer["lr_scheduler"]:
             self.lr_scheduler.load_state_dict(saved_trainer["lr_scheduler"])
         self.early_stop.load_state_dict(saved_trainer["early_stop"])
-        self.trainer_checkpoint.best_metric = self.early_stop.best_metric
         self.loss_history = saved_trainer["loss"]
         self.metric_history = saved_trainer["metric"]
+
+        # Because trainer_checkpoint saved the model its up-to-date state cannot be
+        # included in the checkpoint. Thus, we have to manually restore its state.
+        self.trainer_checkpoint.best_checkpoint = deepcopy(saved_trainer)
+        self.trainer_checkpoint.best_metric = self.early_stop.best_metric
 
         # If the optimizer is loaded from a checkpoint the states are loaded to the CPU.
         # During training, if the device is the GPU the optimizer will raise an error
@@ -198,17 +202,44 @@ class Trainer:
 
 
 class KFoldTrainer(object):
+    """K-Folds cross-validator.
+
+    Each fold is used once as a validation set while the k - 1 remaining folds form the
+    training set.
+
+    Arguments:
+        args (tuple): inputs to initialize `Trainer` objects.
+        kwargs (dict): named inputs to initialize `Trainer` objects.
+
+    """
+
     def __init__(self, *args, **kwargs):
         self.args = args
         self.kwargs = kwargs
+        self.trainers = []
 
     def fit(self, dataloaders, output_fn=None):
-        # Lists that will store the best checkpoints for each fold
-        checkpoints = []
+        """Fit the model given training and validation data.
 
+        Arguments:
+            dataloaders (dict): a dictionary with two keys: `train` and `val`. Each key
+                should contain the dataloaders for each fold.
+            output_fn (function): a function to convert the model output into
+                predictions. When set to `None`, the predictions are the same as the
+                model output. Default: None.
+
+        Returns:
+            dict: the state of the trainer (checkpoint) when the best validation score
+            was found,
+            list: the cross-validation score (the average of each score)
+
+        """
         # Zip the dataloaders for cleaner iteration
         n_folds = len(dataloaders["train"])
         loaders = zip(*dataloaders.values())
+
+        # Lists that will store the best checkpoints for each fold
+        checkpoints = []
         for k, (train_loader, val_loader) in enumerate(loaders):
             print()
             print("-" * 80)
@@ -216,12 +247,23 @@ class KFoldTrainer(object):
             print("-" * 80)
             print()
 
-            # Create a new trainer object that to train from scratch. Checkpoints
-            # from each fold are saved in different directories
-            kwargs = deepcopy(self.kwargs)
-            fold_dir = "fold_{}".format(k + 1)
-            kwargs["checkpoint_dir"] = os.path.join(kwargs["checkpoint_dir"], fold_dir)
-            trainer = Trainer(*self.args, **kwargs)
+            # If resume has been called self.trainers won't be empty and k+1 will be
+            # smaller than the current length of self.trainers. self.trainers[k] is a
+            # loaded checkpoint that has been fully trained.
+            # When k+1 equals the number of self.trainers then self.trainers[k] is a
+            # Trainer object loaded from a checkpoint that might not have finished
+            # training; therefore, training will resume.
+            # If k+1 is greater than the no. of self.trainers, then a new Trainer object
+            # is created and trained from scratch.
+            if k < len(self.trainers) - 1:
+                print("Fold already trained!")
+                checkpoints.append(self.trainers[k].trainer_checkpoint.best_checkpoint)
+                continue
+            elif k > len(self.trainers) - 1:
+                # Create a new trainer object to train from scratch
+                self.trainers.append((self._new_trainer(k + 1)))
+
+            trainer = self.trainers[k]
             best = trainer.fit(train_loader, val_loader, output_fn=output_fn)
             checkpoints.append(best)
             print()
@@ -235,3 +277,48 @@ class KFoldTrainer(object):
         print("Average scores: {}".format(np.round(avg_scores, 4).tolist()))
 
         return checkpoints, avg_scores
+
+    def resume(self, checkpoint_dir):
+        """Resumes training given the checkpoint location.
+
+        The checkpoint directory must contain one subdirectory for each fold. The
+        subdirectories must be named as follows: "fold_x", where x is the fold index.
+        If there are no subdirectories that follow the mentioned pattern a
+        `FileNotFoundError` is raised.
+
+        The `Trainer` objects loaded from the checkpoints are added to the `trainers`
+        attribute.
+
+        Arguments:
+            checkpoint_dir (str): path to the directory where the checkpoints are saved.
+
+        """
+        # Load the checkpoint for each fold, provided that the subdirectory is properly
+        # named
+        fold_idx = 1
+        while os.path.isdir(os.path.join(checkpoint_dir, "fold_" + str(fold_idx))):
+            trainer = self._new_trainer(fold_idx)
+            trainer.resume(os.path.join(checkpoint_dir, "fold_" + str(fold_idx)))
+            self.trainers.append(trainer)
+            fold_idx += 1
+
+        if fold_idx == 1:
+            # If "fold_1" doesn't exist then no valid checkpoints were found
+            raise FileNotFoundError("fold checkpoints not found")
+
+    def _new_trainer(self, fold):
+        """Creates a new `Trainer` object for a given fold.
+
+        Arguments:
+            fold (int): the fold index.
+
+        Returns:
+            Trainer object.
+
+        """
+        kwargs = deepcopy(self.kwargs)
+        fold_subdir = "fold_{}".format(fold)
+        kwargs["checkpoint_dir"] = os.path.join(kwargs["checkpoint_dir"], fold_subdir)
+        trainer = Trainer(*self.args, **kwargs)
+
+        return trainer

@@ -14,5 +14,6 @@
     "resnet_size": 18,
     "stop_patience": 10,
     "subset": 1.0,
-    "workers": 4
+    "workers": 4,
+    "resume": null
 }
