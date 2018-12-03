@@ -75,8 +75,8 @@ if __name__ == "__main__":
         subset=config["subset"],
         random_state=92,
     )
-    ksets = data.kfold_split(dataset, config["n_splits"], random_state=92)
-    dataloaders = data.kfold_loader(
+    ksets = data.utils.kfold_split(dataset, config["n_splits"], random_state=92)
+    dataloaders = data.utils.kfold_loader(
         ksets, config["batch_size"], num_workers=config["workers"]
     )
 
