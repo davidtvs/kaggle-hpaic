@@ -6,6 +6,7 @@ from copy import deepcopy
 from .early_stop import EarlyStopping
 from .checkpoint import Checkpoint
 from metric.metric import Metric, MetricList
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 
 class Trainer:
@@ -16,10 +17,12 @@ class Trainer:
         optimizer,
         criterion,
         metrics,
-        lr_scheduler=None,
         checkpoint_dir=".",
         mode="min",
-        stop_patience=20,
+        stop_patience=10,
+        lr_patience=2,
+        lr_factor=0.1,
+        min_lr=0,
         threshold=1e-4,
         device=None,
     ):
@@ -28,7 +31,6 @@ class Trainer:
         self.start_epoch = 1
         self.epoch = self.start_epoch
         self.num_epochs = num_epochs
-        self.lr_scheduler = lr_scheduler
 
         # Handle types of metrics
         if isinstance(metrics, MetricList):
@@ -38,9 +40,21 @@ class Trainer:
         else:
             raise TypeError("invalid 'metrics' type")
 
-        # Initialize early stopping and trainer checkpoint
-        self.early_stop = EarlyStopping(stop_patience, mode, threshold)
-        self.trainer_checkpoint = Checkpoint(checkpoint_dir, mode, threshold)
+        self.early_stop = EarlyStopping(
+            patience=stop_patience, mode=mode, threshold=threshold
+        )
+        self.trainer_checkpoint = Checkpoint(
+            checkpoint_dir, mode=mode, threshold=threshold
+        )
+        self.lr_scheduler = ReduceLROnPlateau(
+            self.optimizer,
+            mode=mode,
+            factor=lr_factor,
+            patience=lr_patience,
+            min_lr=min_lr,
+            threshold=threshold,
+            verbose=True,
+        )
 
         # If device is None select GPU if available; otherwise, select CPU
         if device is None:
@@ -117,8 +131,7 @@ class Trainer:
             # Assume the main metric is the first one
             metric_val = self.metrics[0].value()
             self.early_stop.step(metric_val)
-            if self.lr_scheduler:
-                self.lr_scheduler.step(metric_val)
+            self.lr_scheduler.step(metric_val)
             self.trainer_checkpoint.step(metric_val, self._get_state())
 
         return epoch_loss
@@ -154,16 +167,12 @@ class Trainer:
         # Make sure the model is in training mode to save the state of layers like
         # batch normalization and dropout.
         self.model.train()
-        if self.lr_scheduler:
-            lr_scheduler_state = self.lr_scheduler.state_dict()
-        else:
-            lr_scheduler_state = None
 
         checkpoint = {
             "epoch": self.epoch,
             "model": self.model.state_dict(),
             "optimizer": self.optimizer.state_dict(),
-            "lr_scheduler": lr_scheduler_state,
+            "lr_scheduler": self.lr_scheduler.state_dict(),
             "early_stop": self.early_stop.state_dict(),
             "loss": self.loss_history,
             "metric": self.metric_history,
@@ -179,8 +188,7 @@ class Trainer:
         self.start_epoch = saved_trainer["epoch"] + 1
         self.model.load_state_dict(saved_trainer["model"])
         self.optimizer.load_state_dict(saved_trainer["optimizer"])
-        if saved_trainer["lr_scheduler"]:
-            self.lr_scheduler.load_state_dict(saved_trainer["lr_scheduler"])
+        self.lr_scheduler.load_state_dict(saved_trainer["lr_scheduler"])
         self.early_stop.load_state_dict(saved_trainer["early_stop"])
         self.loss_history = saved_trainer["loss"]
         self.metric_history = saved_trainer["metric"]

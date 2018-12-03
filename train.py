@@ -117,6 +117,9 @@ if __name__ == "__main__":
         checkpoint_dir=checkpoint_dir,
         mode="max",
         stop_patience=config["stop_patience"],
+        lr_patience=config["lr_patience"],
+        lr_factor=config["lr_factor"],
+        min_lr=config["min_lr"],
         device=config["device"],
     )
     if config["resume"] and os.path.isdir(config["resume"]):
