@@ -81,19 +81,28 @@ if __name__ == "__main__":
         ksets, config["batch_size"], num_workers=config["workers"]
     )
 
-    # Compute weights
-    if config["weighing"]:
-        weights = data.utils.median_freq_balancing(dataset.targets)
-    else:
-        weights = np.ones((num_classes,))
-    weights = torch.tensor(weights, dtype=torch.float, device=config["device"])
-
     # Initialize the model
     net = model.resnet(config["resnet_size"], num_classes)
     print(net)
 
-    # Initialize loss function and optimizer
-    criterion = nn.BCEWithLogitsLoss(pos_weight=weights)
+    # Select loss function
+    loss_name = config["loss"].lower()
+    if loss_name == "bce":
+        criterion = nn.BCEWithLogitsLoss()
+    elif loss_name == "bce_w":
+        weights = data.utils.median_freq_balancing(dataset.targets)
+        weights = torch.tensor(weights, dtype=torch.float, device=config["device"])
+        criterion = nn.BCEWithLogitsLoss(weight=weights)
+    elif loss_name == "bce_pw":
+        weights = data.utils.median_freq_balancing(dataset.targets)
+        weights = torch.tensor(weights, dtype=torch.float, device=config["device"])
+        criterion = nn.BCEWithLogitsLoss(pos_weight=weights)
+    elif loss_name == "bfl":
+        criterion = model.BinaryFocalWithLogitsLoss()
+    else:
+        raise ValueError("invalid loss: {}".format(config["loss"]))
+
+    # Optimizer
     optimizer = optim.Adam(net.parameters(), lr=config["lr_rate"])
 
     # Initialize metrics: the main metric is the macro F1 score; additionally, we'll

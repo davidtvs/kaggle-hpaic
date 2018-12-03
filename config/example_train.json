@@ -8,6 +8,7 @@
     "image_mode": "rgb",
     "img_h": 224,
     "img_w": 224,
+    "loss": "bce",
     "lr_rate": 0.001,
     "lr_patience": 3,
     "lr_factor": 0.1,
@@ -18,6 +19,5 @@
     "stop_patience": 10,
     "subset": 1.0,
     "workers": 4,
-    "resume": null,
-    "weighing": true
+    "resume": null
 }
