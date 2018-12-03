@@ -1,3 +1,4 @@
+import numpy as np
 from torch.utils.data import Subset
 from torch.utils.data import DataLoader
 from iterstrat.ml_stratifiers import (
@@ -71,3 +72,30 @@ def train_val_split(dataset, val_size=0.2, random_state=None):
     train_indices, val_indices = list(msss.split(X, y))[0]
 
     return Subset(dataset, train_indices), Subset(dataset, val_indices)
+
+
+def median_freq_balancing(labels):
+    """Computes class weights using median frequency balancing as described
+    in https://arxiv.org/abs/1411.4734:
+
+        w_class = median_freq / freq_class,
+
+    where freq_class is the number of positive labels of a given class divided by the
+    total number of labels, and median_freq is the median of freq_class.
+
+    Arguments:
+        labels (numpy.ndarray): array of labels with size (N, C) where N is the number
+            of samples and C is the number of classes.
+
+    Returns:
+        numpy.ndarray: class weigths with shape (C,).
+
+    """
+    # Count the no. of positive labels for each class
+    class_count = np.sum(labels, axis=0)
+
+    # Compute the frequency and its median
+    freq = class_count / labels.size
+    med = np.median(freq)
+
+    return med / freq

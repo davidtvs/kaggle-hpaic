@@ -1,4 +1,5 @@
 import os
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -80,12 +81,19 @@ if __name__ == "__main__":
         ksets, config["batch_size"], num_workers=config["workers"]
     )
 
+    # Compute weights
+    if config["weighing"]:
+        weights = data.utils.median_freq_balancing(dataset.targets)
+    else:
+        weights = np.ones((num_classes,))
+    weights = torch.tensor(weights, dtype=torch.float, device=config["device"])
+
     # Initialize the model
     net = model.resnet(config["resnet_size"], num_classes)
     print(net)
 
     # Initialize loss function and optimizer
-    criterion = nn.BCEWithLogitsLoss()
+    criterion = nn.BCEWithLogitsLoss(pos_weight=weights)
     optimizer = optim.Adam(net.parameters(), lr=config["lr_rate"])
 
     # Initialize metrics: the main metric is the macro F1 score; additionally, we'll

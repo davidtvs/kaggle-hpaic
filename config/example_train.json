@@ -15,5 +15,6 @@
     "stop_patience": 10,
     "subset": 1.0,
     "workers": 4,
-    "resume": null
+    "resume": null,
+    "weighing": true
 }
