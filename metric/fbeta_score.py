@@ -1,8 +1,8 @@
 import numpy as np
-from metric import metric
+from .metric import Metric
 
 
-class FBetaScore(metric.Metric):
+class FBetaScore(Metric):
     def __init__(self, beta=1, labels=None, average="macro", name="f1", eps=1e-8):
         super().__init__(name)
         self.labels = labels

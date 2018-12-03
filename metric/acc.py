@@ -1,9 +1,9 @@
 import numpy as np
 import torch
-from metric import metric
+from .metric import Metric
 
 
-class Accuracy(metric.Metric):
+class Accuracy(Metric):
     """Computes the accuracy.
 
     accuracy = correct_predictions / total_predictions
