@@ -324,9 +324,10 @@ class KFoldTrainer(object):
             Trainer object.
 
         """
+        args = deepcopy(self.args)
         kwargs = deepcopy(self.kwargs)
         fold_subdir = "fold_{}".format(fold)
         kwargs["checkpoint_dir"] = os.path.join(kwargs["checkpoint_dir"], fold_subdir)
-        trainer = Trainer(*self.args, **kwargs)
+        trainer = Trainer(*args, **kwargs)
 
         return trainer
