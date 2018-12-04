@@ -2,7 +2,6 @@
     "batch_size": 16,
     "checkpoint_dir": "checkpoint",
     "dataset_dir": "../dataset/",
-    "dataset_info": false,
     "device": "cuda",
     "epochs": 30,
     "image_mode": "rgb",
@@ -19,5 +18,6 @@
     "stop_patience": 10,
     "subset": 1.0,
     "workers": 4,
+    "weighing": null,
     "resume": null
 }

@@ -74,18 +74,22 @@ def train_val_split(dataset, val_size=0.2, random_state=None):
     return Subset(dataset, train_indices), Subset(dataset, val_indices)
 
 
-def median_freq_balancing(labels):
-    """Computes class weights using median frequency balancing as described
-    in https://arxiv.org/abs/1411.4734:
+def frequency_balancing(labels, scaling=None):
+    """Computes class weights using the class frequency.
 
-        w_class = median_freq / freq_class,
-
-    where freq_class is the number of positive labels of a given class divided by the
-    total number of labels, and median_freq is the median of freq_class.
+    Frequency balancing is described as the inverse of the class frequency:
+        w = 1 / freq
 
     Arguments:
         labels (numpy.ndarray): array of labels with size (N, C) where N is the number
             of samples and C is the number of classes.
+        scaling (string, optional): the scaling to apply to the weights:
+            - `"median"`: the weights are multiplied by the median frequency;
+            - `"majority"`: the weights are multiplied by the frequency of the majority
+                class (maximum frequency);
+            - `"minority"`: the weights are multiplied by the frequency of the minority
+                class (minimum frequency);
+            - `None` or `"none"`: the weights are not rescaled.
 
     Returns:
         numpy.ndarray: class weigths with shape (C,).
@@ -95,7 +99,17 @@ def median_freq_balancing(labels):
     class_count = np.sum(labels, axis=0)
 
     # Compute the frequency and its median
-    freq = class_count / labels.size
-    med = np.median(freq)
+    freq = class_count / labels.shape[0]
 
-    return med / freq
+    if scaling is None or scaling.lower() == "none":
+        w = 1 / freq
+    elif scaling.lower() == "median":
+        w = np.median(freq) / freq
+    elif scaling.lower() == "majority":
+        w = np.max(freq) / freq
+    elif scaling.lower() == "minority":
+        w = np.min(freq) / freq
+    else:
+        raise ValueError("invalid scaling mode: {}".format(scaling))
+
+    return w

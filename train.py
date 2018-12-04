@@ -81,6 +81,26 @@ if __name__ == "__main__":
         ksets, config["batch_size"], num_workers=config["workers"]
     )
 
+    # Compute class weights
+    if config["weighing"]:
+        weighing_name = config["weighing"].lower()
+        labels = dataset.targets
+        if weighing_name == "fb":
+            weights = data.utils.frequency_balancing(labels)
+        elif weighing_name == "median_fb":
+            weights = data.utils.frequency_balancing(labels, scaling="median")
+        elif weighing_name == "majority_fb":
+            weights = data.utils.frequency_balancing(labels, scaling="majority")
+        elif weighing_name == "minority_fb":
+            weights = data.utils.frequency_balancing(labels, scaling="minority")
+        else:
+            raise ValueError("invalid weighing: {}".format(config["weighing"]))
+    else:
+        weights = np.ones((num_classes,))
+
+    weights = torch.tensor(weights, dtype=torch.float, device=config["device"])
+    print(weights)
+
     # Initialize the model
     net = model.resnet(config["resnet_size"], num_classes)
     print(net)
@@ -90,12 +110,8 @@ if __name__ == "__main__":
     if loss_name == "bce":
         criterion = nn.BCEWithLogitsLoss()
     elif loss_name == "bce_w":
-        weights = data.utils.median_freq_balancing(dataset.targets)
-        weights = torch.tensor(weights, dtype=torch.float, device=config["device"])
         criterion = nn.BCEWithLogitsLoss(weight=weights)
     elif loss_name == "bce_pw":
-        weights = data.utils.median_freq_balancing(dataset.targets)
-        weights = torch.tensor(weights, dtype=torch.float, device=config["device"])
         criterion = nn.BCEWithLogitsLoss(pos_weight=weights)
     elif loss_name == "bfl":
         criterion = model.BinaryFocalWithLogitsLoss()
