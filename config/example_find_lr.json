@@ -1,0 +1,20 @@
+{
+    "mode": "find_lr",
+    "device": "cuda",
+    "dataset_dir": "../dataset/",
+    "image_mode": "rgb",
+    "img_h": 224,
+    "img_w": 224,
+    "random_state": 92,
+    "batch_size": 64,
+    "workers": 4,
+    "resnet_size": 18,
+    "loss": "bce",
+    "weighing": null,
+    "initial_lr": 0.001,
+    "end_lr": 10,
+    "step_mode": "exp",
+    "num_iter": 100,
+    "subset": 1.0,
+    "val_size": 0.2
+}

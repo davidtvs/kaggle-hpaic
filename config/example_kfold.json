@@ -1,4 +1,7 @@
 {
+    "mode": "kfold",
+    "name": "example",
+    "random_state": 92,
     "batch_size": 16,
     "checkpoint_dir": "checkpoint",
     "dataset_dir": "../dataset/",
@@ -12,7 +15,6 @@
     "lr_patience": 3,
     "lr_factor": 0.1,
     "min_lr": 1e-6,
-    "name": "example",
     "n_splits": 5,
     "resnet_size": 18,
     "stop_patience": 10,
