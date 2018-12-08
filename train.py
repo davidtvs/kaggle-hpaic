@@ -143,11 +143,13 @@ if __name__ == "__main__":
     if mode_name == "find_lr":
         # Run the learning rate finder
         # Split the dataset intro training and validation
-        train_set, val_set = data.utils.train_val_split(
-            dataset, val_size=config["val_size"], random_state=random_state
-        )
-        train_loader, _ = data.utils.train_val_loader(
-            train_set, val_set, config["batch_size"], num_workers=config["workers"]
+        train_loader, val_loader = data.utils.train_val_loaders(
+            dataset,
+            config["val_size"],
+            config["batch_size"],
+            tf_train=tf.Augmentation(image_size),
+            num_workers=config["workers"],
+            random_state=random_state,
         )
 
         # Optimizer
@@ -163,11 +165,13 @@ if __name__ == "__main__":
     elif mode_name == "kfold":
         # K-fold training
         # Split dataset into k-sets and get one dataloader for each set
-        ksets = data.utils.kfold_split(
-            dataset, config["n_splits"], random_state=random_state
-        )
-        dataloaders = data.utils.kfold_loader(
-            ksets, config["batch_size"], num_workers=config["workers"]
+        train_loaders, val_loaders = data.utils.kfold_loaders(
+            dataset,
+            config["n_splits"],
+            config["batch_size"],
+            tf_train=tf.Augmentation(image_size),
+            num_workers=config["workers"],
+            random_state=random_state,
         )
 
         # Optimizer
@@ -195,6 +199,6 @@ if __name__ == "__main__":
         )
         if config["resume"] and os.path.isdir(config["resume"]):
             trainer.resume(config["resume"])
-        trainer.fit(dataloaders, output_fn=sigmoid_threshold)
+        trainer.fit(train_loaders, val_loaders, output_fn=sigmoid_threshold)
     else:
         raise ValueError("invalid mode in configuration file")

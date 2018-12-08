@@ -226,12 +226,12 @@ class KFoldTrainer(object):
         self.kwargs = kwargs
         self.trainers = []
 
-    def fit(self, dataloaders, output_fn=None):
+    def fit(self, train_loaders, val_loaders, output_fn=None):
         """Fit the model given training and validation data.
 
         Arguments:
-            dataloaders (dict): a dictionary with two keys: `train` and `val`. Each key
-                should contain the dataloaders for each fold.
+            train_loaders (array-like): k training dataloaders.
+            val_loaders (array-like): k validation dataloaders.
             output_fn (function): a function to convert the model output into
                 predictions. When set to `None`, the predictions are the same as the
                 model output. Default: None.
@@ -243,8 +243,8 @@ class KFoldTrainer(object):
 
         """
         # Zip the dataloaders for cleaner iteration
-        n_folds = len(dataloaders["train"])
-        loaders = zip(*dataloaders.values())
+        n_folds = len(train_loaders)
+        loaders = zip(train_loaders, val_loaders)
 
         # Lists that will store the best checkpoints for each fold
         checkpoints = []
