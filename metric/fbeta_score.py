@@ -3,7 +3,7 @@ from .metric import Metric
 
 
 class FBetaScore(Metric):
-    def __init__(self, beta=1, labels=None, average="macro", name="f1", eps=1e-8):
+    def __init__(self, beta, labels=None, average="macro", name="f1", eps=1e-8):
         super().__init__(name)
         self.labels = labels
         self.eps = eps
@@ -40,23 +40,29 @@ class FBetaScore(Metric):
             self.fp += fp
 
     def value(self):
-        if self.labels is None:
-            self.labels = list(range(len(self.tp)))
+        if isinstance(self.tp, np.ndarray):
+            if self.labels is None:
+                # Labels have not been specified; therefore all are selected
+                self.labels = list(range(len(self.tp)))
+
+            # Label selection
+            tp = self.tp[self.labels]
+            fn = self.fn[self.labels]
+            fp = self.fp[self.labels]
+        else:
+            # Case where predicted and target are 1D arrays - tp, fn, and fp are numbers
+            tp = self.tp
+            fn = self.fn
+            fp = self.fp
 
         if self.average == "macro":
-            score = self._macro()
-        elif self.average == "micro":
-            score = self._micro()
+            score = self._macro(tp, fn, fp)
         else:
-            raise ValueError("invalid average mode")
+            score = self._micro(tp, fn, fp)
 
         return score
 
-    def _macro(self):
-        tp = self.tp[self.labels]
-        fn = self.fn[self.labels]
-        fp = self.fp[self.labels]
-
+    def _macro(self, tp, fn, fp):
         beta_sq = self.beta * self.beta
         class_f_num = (1 + beta_sq) * tp
         class_f_den = (1 + beta_sq) * tp + beta_sq * fn + fp + self.eps
@@ -64,10 +70,10 @@ class FBetaScore(Metric):
 
         return np.mean(class_f)
 
-    def _micro(self):
-        tp = np.sum(self.tp[self.labels])
-        fn = np.sum(self.fn[self.labels])
-        fp = np.sum(self.fp[self.labels])
+    def _micro(self, tp, fn, fp):
+        tp = np.sum(tp)
+        fn = np.sum(fn)
+        fp = np.sum(fp)
 
         beta_sq = self.beta * self.beta
         f_num = (1 + beta_sq) * tp

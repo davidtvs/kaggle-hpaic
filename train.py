@@ -104,10 +104,10 @@ def get_metric_list(dataset):
     The main metric is the macro F1 score. Additionally, the F1 score for each class,
     and the overall accuracy are also computed.
     """
-    metrics = [metric.FBetaScore(name="f1_macro")]
+    metrics = [metric.FBetaScore(1, name="f1_macro")]
     for label in sorted(dataset.label_to_name):
         name = "f1_" + dataset.label_to_name[label]
-        metrics.append(metric.FBetaScore(labels=label, name=name))
+        metrics.append(metric.FBetaScore(1, labels=label, name=name))
 
     metrics.append(metric.Accuracy())
 
