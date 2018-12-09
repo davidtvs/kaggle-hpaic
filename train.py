@@ -155,6 +155,8 @@ if __name__ == "__main__":
         criterion = nn.BCEWithLogitsLoss(pos_weight=weights)
     elif loss_name == "bfl":
         criterion = model.BinaryFocalWithLogitsLoss()
+    elif loss_name == "f1":
+        criterion = model.FBetaWithLogitsLoss(1)
     else:
         raise ValueError("invalid loss: {}".format(config["loss"]))
 

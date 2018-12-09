@@ -8,7 +8,7 @@
     "image_mode": "rgb",
     "img_h": 224,
     "img_w": 224,
-    "subset": 1.0,
+    "subset": 0.5,
     "n_splits": 5,
     "random_state": 92,
     "batch_size": 16,
