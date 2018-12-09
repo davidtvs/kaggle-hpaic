@@ -1,5 +1,6 @@
 import numpy as np
-from torch.utils.data import DataLoader
+import torch
+from torch.utils.data import DataLoader, WeightedRandomSampler
 from iterstrat.ml_stratifiers import (
     MultilabelStratifiedKFold,
     MultilabelStratifiedShuffleSplit,
@@ -14,6 +15,7 @@ def kfold_loaders(
     batch_size,
     tf_train=to_tensor,
     tf_val=to_tensor,
+    train_sampler=None,
     num_workers=4,
     random_state=None,
 ):
@@ -32,6 +34,10 @@ def kfold_loaders(
             Default: transforms.to_tensor.
         tf_val (callable, optional): transformation to apply to the validation datasets.
             Default: transforms.to_tensor.
+        train_sampler (functools.partial, optional): partial function object that takes
+            the dataset targets as the only remaining argument. The function defines the
+            strategy to draw samples from the dataset. If specified, ``shuffle`` must be
+            False. Default: None.
         num_workers (int, optional): how many subprocesses to use for data loading.
             0 means that the data will be loaded in the main process. Default: 4.
         random_state (int, optional): the seed used by the random number generator.
@@ -43,6 +49,9 @@ def kfold_loaders(
         list: validation dataloaders for each k-fold
 
     """
+    train_shuffle = train_sampler is None
+    val_shuffle = False
+
     # Get samples and targets arrays
     X = dataset.sample_names
     y = dataset.targets
@@ -55,17 +64,34 @@ def kfold_loaders(
     train = []
     val = []
     for train_indices, val_indices in mskf.split(X, y):
-        # Create the training subset from the indices and the dataloader
+        # Create the training subset from the indices
         subset_train = Subset(dataset, train_indices, tf_train)
+
+        # Create the data sampler by passing the labels of the training sub set to the
+        # partial function object
+        if train_sampler is None:
+            subsampler = train_sampler
+        else:
+            subsampler = train_sampler(dataset.targets[train_indices])
+
+        # Initialize the training dataloader
         loader_train = DataLoader(
-            subset_train, batch_size=batch_size, shuffle=True, num_workers=num_workers
+            subset_train,
+            batch_size=batch_size,
+            shuffle=train_shuffle,
+            sampler=subsampler,
+            num_workers=num_workers,
         )
         train.append(loader_train)
 
-        # Same as above but for the validation set
+        # Similar to the above, but the validation set doesn't use any sampling
+        # technique
         subset_val = Subset(dataset, val_indices, tf_val)
         loader_val = DataLoader(
-            subset_val, batch_size=batch_size, shuffle=False, num_workers=num_workers
+            subset_val,
+            batch_size=batch_size,
+            shuffle=val_shuffle,
+            num_workers=num_workers,
         )
         val.append(loader_val)
 
@@ -78,6 +104,7 @@ def train_val_loaders(
     batch_size,
     tf_train=to_tensor,
     tf_val=to_tensor,
+    train_sampler=None,
     num_workers=4,
     random_state=None,
 ):
@@ -96,6 +123,10 @@ def train_val_loaders(
             Default: transforms.to_tensor.
         tf_val (callable, optional): transformation to apply to the validation datasets.
             Default: transforms.to_tensor.
+        train_sampler (functools.partial, optional): partial function object that takes
+            the dataset targets as the only remaining argument. The function defines the
+            strategy to draw samples from the dataset. If specified, ``shuffle`` must be
+            False. Default: None.
         num_workers (int, optional): how many subprocesses to use for data loading.
             0 means that the data will be loaded in the main process. Default: 4.
         random_state (int, optional): the seed used by the random number generator.
@@ -107,6 +138,9 @@ def train_val_loaders(
         torch.utils.data.DataLoader: validation dataloader
 
     """
+    train_shuffle = train_sampler is None
+    val_shuffle = False
+
     # Get samples and targets arrays
     X = dataset.sample_names
     y = dataset.targets
@@ -117,11 +151,31 @@ def train_val_loaders(
     )
     train_indices, val_indices = list(msss.split(X, y))[0]
 
-    # Create the training and validation subsets and dataloaders
+    # Create the training subset from the stratified indices
     train_set = Subset(dataset, train_indices, tf_train)
+
+    # Create the data sampler by passing the labels of the training sub set to the
+    # partial function object
+    if train_sampler is None:
+        sampler = train_sampler
+    else:
+        sampler = train_sampler(dataset.targets[train_indices])
+
+    # Initialize the training dataloader
+    train_loader = DataLoader(
+        train_set,
+        batch_size=batch_size,
+        shuffle=train_shuffle,
+        sampler=sampler,
+        num_workers=num_workers,
+    )
+
+    # Similar to the above, but the validation set doesn't use any sampling
+    # technique
     val_set = Subset(dataset, val_indices, tf_val)
-    train_loader = DataLoader(train_set, batch_size=batch_size, num_workers=num_workers)
-    val_loader = DataLoader(val_set, batch_size=batch_size, num_workers=num_workers)
+    val_loader = DataLoader(
+        val_set, batch_size=batch_size, shuffle=val_shuffle, num_workers=num_workers
+    )
 
     return train_loader, val_loader
 
@@ -165,3 +219,28 @@ def frequency_balancing(labels, scaling=None):
         raise ValueError("invalid scaling mode: {}".format(scaling))
 
     return w
+
+
+def freq_weighted_sampler(labels, mode="median"):
+    mode = mode.lower()
+    if mode not in ("median", "mean"):
+        raise ValueError("invalid mode: {}".format(mode))
+
+    # Get the class frequencies and multiply them by the targets (multi-label binary
+    # matrix). The result is a matrix where at each positive label the corresponding
+    # weight is found
+    w = frequency_balancing(labels, scaling="median")
+    samples_weight = labels * w
+
+    # To apply the specified operation we want to ignore the 0s; the simplest way of
+    # achieving this goal is to set all 0s to NaN and use the operations that ignore NaN
+    samples_weight[samples_weight == 0] = np.nan
+    if mode == "median":
+        samples_weight = np.nanmedian(samples_weight, axis=1)
+    else:
+        samples_weight = np.nanmean(samples_weight, axis=1)
+
+    # Convert to torch tensor
+    samples_weight = torch.from_numpy(samples_weight)
+
+    return WeightedRandomSampler(samples_weight, len(samples_weight))

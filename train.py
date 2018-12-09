@@ -1,4 +1,5 @@
 import os
+from functools import partial
 import numpy as np
 import torch
 import torch.nn as nn
@@ -59,6 +60,22 @@ def sigmoid_threshold(tensor, threshold=0.5, high=1, low=0):
     return torch.where(out > threshold, high, low)
 
 
+def get_sampler(sampler_name):
+    """Creates the sampling partial function to apply to the training labels"""
+    if sampler_name:
+        sampler_name = sampler_name.lower()
+        if sampler_name == "mean":
+            sampler = partial(data.utils.freq_weighted_sampler, mode="mean")
+        elif sampler_name == "median":
+            sampler = partial(data.utils.freq_weighted_sampler, mode="median")
+        else:
+            raise ValueError("invalid sampling technique: {}".format(sampler_name))
+    else:
+        sampler = None
+
+    return sampler
+
+
 def get_weights(weighing_name, labels, device):
     """Computes class weights given the name of the weighing technique."""
     if weighing_name:
@@ -72,7 +89,7 @@ def get_weights(weighing_name, labels, device):
         elif weighing_name == "minority_fb":
             weights = data.utils.frequency_balancing(labels, scaling="minority")
         else:
-            raise ValueError("invalid weighing: {}".format(config["weighing"]))
+            raise ValueError("invalid weighing: {}".format(weighing_name))
     else:
         weights = np.ones((num_classes,))
 
@@ -106,7 +123,7 @@ if __name__ == "__main__":
     device = torch.device(config["device"])
     random_state = config["random_state"]
 
-    # Initialize the dataset and get the K-fold dataloaders
+    # Initialize the dataset
     image_size = (config["img_h"], config["img_w"])
     dataset = data.HPADataset(
         config["dataset_dir"],
@@ -116,6 +133,9 @@ if __name__ == "__main__":
         random_state=random_state,
     )
     num_classes = len(dataset.label_to_name)
+
+    # Intiliaze the sampling strategy
+    train_sampler = get_sampler(config["sampler"])
 
     # Compute class weights
     weights = get_weights(config["weighing"], dataset.targets, device)
@@ -148,6 +168,7 @@ if __name__ == "__main__":
             config["val_size"],
             config["batch_size"],
             tf_train=tf.Augmentation(image_size),
+            train_sampler=train_sampler,
             num_workers=config["workers"],
             random_state=random_state,
         )
@@ -170,6 +191,7 @@ if __name__ == "__main__":
             config["n_splits"],
             config["batch_size"],
             tf_train=tf.Augmentation(image_size),
+            train_sampler=train_sampler,
             num_workers=config["workers"],
             random_state=random_state,
         )
