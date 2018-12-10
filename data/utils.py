@@ -5,7 +5,7 @@ from iterstrat.ml_stratifiers import (
     MultilabelStratifiedKFold,
     MultilabelStratifiedShuffleSplit,
 )
-from .transforms import to_tensor
+from .transforms import ToTensor
 from .subset import Subset
 
 
@@ -13,8 +13,8 @@ def kfold_loaders(
     dataset,
     n_splits,
     batch_size,
-    tf_train=to_tensor,
-    tf_val=to_tensor,
+    tf_train=ToTensor(),
+    tf_val=ToTensor(),
     train_sampler=None,
     num_workers=4,
     random_state=None,
@@ -31,9 +31,9 @@ def kfold_loaders(
         n_splits (int): number of folds.
         batch_size (int): how many samples per batch to load.
         tf_train (callable, optional): transformation to apply to the training datasets.
-            Default: transforms.to_tensor.
+            Default: transforms.ToTensor.
         tf_val (callable, optional): transformation to apply to the validation datasets.
-            Default: transforms.to_tensor.
+            Default: transforms.ToTensor.
         train_sampler (functools.partial, optional): partial function object that takes
             the dataset targets as the only remaining argument. The function defines the
             strategy to draw samples from the dataset. If specified, ``shuffle`` must be
@@ -102,8 +102,8 @@ def train_val_loaders(
     dataset,
     val_size,
     batch_size,
-    tf_train=to_tensor,
-    tf_val=to_tensor,
+    tf_train=ToTensor(),
+    tf_val=ToTensor(),
     train_sampler=None,
     num_workers=4,
     random_state=None,
@@ -120,9 +120,9 @@ def train_val_loaders(
             the dataset to include in the validation split.
         batch_size (int): how many samples per batch to load.
         tf_train (callable, optional): transformation to apply to the training datasets.
-            Default: transforms.to_tensor.
+            Default: transforms.ToTensor.
         tf_val (callable, optional): transformation to apply to the validation datasets.
-            Default: transforms.to_tensor.
+            Default: transforms.ToTensor.
         train_sampler (functools.partial, optional): partial function object that takes
             the dataset targets as the only remaining argument. The function defines the
             strategy to draw samples from the dataset. If specified, ``shuffle`` must be

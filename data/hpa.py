@@ -4,7 +4,7 @@ import numpy as np
 from PIL import Image
 from torch.utils.data import Dataset
 from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
-from .transforms import to_tensor
+from .transforms import ToTensor
 
 
 class HPADataset(Dataset):
@@ -58,7 +58,7 @@ class HPADataset(Dataset):
         root_dir,
         filters,
         is_training=True,
-        transform=to_tensor,
+        transform=ToTensor(),
         subset=1.0,
         random_state=None,
     ):

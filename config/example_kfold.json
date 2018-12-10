@@ -11,6 +11,7 @@
     "subset": 0.5,
     "n_splits": 5,
     "random_state": 92,
+    "aug": false,
     "batch_size": 16,
     "sampler": "mean",
     "workers": 4,

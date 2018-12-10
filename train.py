@@ -4,6 +4,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.utils.data import DataLoader
 from argparse import ArgumentParser
 import core
 import data
@@ -164,15 +165,21 @@ if __name__ == "__main__":
     mode_name = config["mode"].lower()
     if mode_name == "find_lr":
         # Run the learning rate finder
-        # Split the dataset intro training and validation
-        train_loader, val_loader = data.utils.train_val_loaders(
+        # Create the data sampler by passing the labels of the training set to the
+        # partial function that is wrapping the sampler
+        shuffle = train_sampler is None
+        if train_sampler is None:
+            sampler = train_sampler
+        else:
+            sampler = train_sampler(dataset.targets)
+
+        # Initialize the dataloader
+        train_loader = DataLoader(
             dataset,
-            config["val_size"],
-            config["batch_size"],
-            tf_train=tf.Augmentation(image_size),
-            train_sampler=train_sampler,
+            batch_size=config["batch_size"],
+            shuffle=shuffle,
+            sampler=sampler,
             num_workers=config["workers"],
-            random_state=random_state,
         )
 
         # Optimizer
@@ -187,12 +194,17 @@ if __name__ == "__main__":
         lr_finder.plot()
     elif mode_name == "kfold":
         # K-fold training
+        if config["aug"]:
+            tf_train = tf.Augmentation(image_size)
+        else:
+            tf_train = tf.ToTensor()
+
         # Split dataset into k-sets and get one dataloader for each set
         train_loaders, val_loaders = data.utils.kfold_loaders(
             dataset,
             config["n_splits"],
             config["batch_size"],
-            tf_train=tf.Augmentation(image_size),
+            tf_train=tf_train,
             train_sampler=train_sampler,
             num_workers=config["workers"],
             random_state=random_state,

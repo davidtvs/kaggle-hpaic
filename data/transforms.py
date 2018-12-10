@@ -1,24 +1,26 @@
 import torch
-import torchvision.transforms as transform
+import torchvision.transforms as transforms
 
 
-def to_tensor(input, target):
-    input = transform.ToTensor()(input)
-    target = torch.tensor(target, dtype=torch.float)
-    return input, target
+class ToTensor(object):
+    def __call__(self, input, target):
+        input = transforms.ToTensor()(input)
+        target = torch.tensor(target, dtype=torch.float)
+
+        return input, target
 
 
 class Augmentation(object):
     def __init__(
         self, size, degrees=20, brightness=0.25, contrast=0.25, saturation=0.25
     ):
-        self.image_aug = transform.Compose(
+        self.image_aug = transforms.Compose(
             [
-                transform.Resize(size),
-                transform.RandomHorizontalFlip(),
-                transform.RandomVerticalFlip(),
-                transform.RandomRotation(degrees),
-                transform.ColorJitter(
+                transforms.Resize(size),
+                transforms.RandomHorizontalFlip(),
+                transforms.RandomVerticalFlip(),
+                transforms.RandomRotation(degrees),
+                transforms.ColorJitter(
                     brightness=brightness, contrast=contrast, saturation=saturation
                 ),
             ]
@@ -26,4 +28,5 @@ class Augmentation(object):
 
     def __call__(self, input, target):
         input = self.image_aug(input)
-        return to_tensor(input, target)
+
+        return ToTensor()(input, target)
