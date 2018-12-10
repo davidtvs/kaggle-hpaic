@@ -124,12 +124,18 @@ if __name__ == "__main__":
     device = torch.device(config["device"])
     random_state = config["random_state"]
 
-    # Initialize the dataset
+    # Data transformations
     image_size = (config["img_h"], config["img_w"])
+    if config["aug"]:
+        tf_train = tf.Augmentation(image_size)
+    else:
+        tf_train = tf.Resize(image_size)
+
+    # Initialize the dataset
     dataset = data.HPADataset(
         config["dataset_dir"],
         config["image_mode"],
-        transform=tf.Augmentation(image_size),
+        transform=tf_train,
         subset=config["subset"],
         random_state=random_state,
     )
@@ -194,11 +200,6 @@ if __name__ == "__main__":
         lr_finder.plot()
     elif mode_name == "kfold":
         # K-fold training
-        if config["aug"]:
-            tf_train = tf.Augmentation(image_size)
-        else:
-            tf_train = tf.ToTensor()
-
         # Split dataset into k-sets and get one dataloader for each set
         train_loaders, val_loaders = data.utils.kfold_loaders(
             dataset,
