@@ -149,7 +149,9 @@ if __name__ == "__main__":
     print(weights)
 
     # Initialize the model
-    net = model.resnet(config["resnet_size"], num_classes)
+    net = model.resnet(
+        config["resnet_size"], num_classes, dropout_p=config["dropout_p"]
+    )
     print(net)
 
     # Select loss function
@@ -189,7 +191,11 @@ if __name__ == "__main__":
         )
 
         # Optimizer
-        optimizer = optim.Adam(net.parameters(), lr=config["initial_lr"])
+        optimizer = optim.Adam(
+            net.parameters(),
+            lr=config["initial_lr"],
+            weight_decay=config["weight_decay"],
+        )
         lr_finder = utils.LRFinder(net, optimizer, criterion, device=device)
         lr_finder.range_test(
             train_loader,
@@ -212,7 +218,9 @@ if __name__ == "__main__":
         )
 
         # Optimizer
-        optimizer = optim.Adam(net.parameters(), lr=config["lr_rate"])
+        optimizer = optim.Adam(
+            net.parameters(), lr=config["lr"], weight_decay=config["weight_decay"]
+        )
 
         # Get list of metrics
         metrics = get_metric_list(dataset)
