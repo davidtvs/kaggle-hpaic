@@ -277,14 +277,27 @@ class KFoldTrainer(object):
             print()
 
         # Compute the average score for each metric
-        scores = []
+        scores_train = []
+        scores_val = []
         for checkpoint in checkpoints:
-            scores.append(checkpoint["metric"]["val"][-1].value())
+            scores_train.append(checkpoint["metric"]["train"][-1].value())
+            scores_val.append(checkpoint["metric"]["val"][-1].value())
 
-        avg_scores = np.mean(scores, axis=0)
-        print("Average scores: {}".format(np.round(avg_scores, 4).tolist()))
+        avg_scores_train = np.mean(scores_train, axis=0)
+        avg_scores_val = np.mean(scores_val, axis=0)
+        print(
+            "Average training CV metrics: {}".format(
+                np.round(avg_scores_train, 4).tolist()
+            )
+        )
+        print()
+        print(
+            "Average validation CV metrics: {}".format(
+                np.round(avg_scores_val, 4).tolist()
+            )
+        )
 
-        return checkpoints, avg_scores
+        return checkpoints, (avg_scores_train, avg_scores_val)
 
     def resume(self, checkpoint_dir):
         """Resumes training given the checkpoint location.
