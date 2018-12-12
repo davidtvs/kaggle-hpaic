@@ -1,5 +1,4 @@
 {
-    "mode": "kfold",
     "name": "example",
     "device": "cuda",
     "checkpoint_dir": "checkpoint",
