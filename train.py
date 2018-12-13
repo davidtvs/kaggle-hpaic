@@ -80,7 +80,7 @@ if __name__ == "__main__":
     print("Sample transform when validation:", tf_val)
 
     # Initialize the dataset
-    dataset = data.HPADataset(
+    dataset = data.HPADatasetHDF5(
         config["dataset_dir"],
         config["image_mode"],
         subset=config["subset"],

@@ -3,7 +3,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from argparse import ArgumentParser
 from core import LRFinder
-from data import HPADataset
+from data import HPADatasetHDF5
 import data.transforms as tf
 import model
 import utils
@@ -74,7 +74,7 @@ if __name__ == "__main__":
     print("Sample transform when validation:", tf_val)
 
     # Initialize the dataset
-    dataset = HPADataset(
+    dataset = HPADatasetHDF5(
         config["dataset_dir"],
         config["image_mode"],
         subset=config["subset"],
