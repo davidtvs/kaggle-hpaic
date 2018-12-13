@@ -89,9 +89,12 @@ class HPADataset(Dataset):
             # Create a subset of the data
             self.sample_names, self.targets = self._subset(image_names, targets)
         else:
-            # Get the list of images from the test directory
+            # Get the list of images from the test directory and remove the filter from
+            # the file name
             self.data_dir = os.path.join(self.root_dir, self.test_dir)
-            self.sample_names = sorted(os.listdir(self.data_dir))
+            sample_names = sorted(os.listdir(self.data_dir))
+            sample_names = [name.rsplit("_", 1)[0] for name in sample_names]
+            self.sample_names = sorted(set(sample_names))
 
             # The test set ground-truth is not public
             self.targets = None
