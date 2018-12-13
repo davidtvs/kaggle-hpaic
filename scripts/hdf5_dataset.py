@@ -81,6 +81,7 @@ if __name__ == "__main__":
     hdf5_dir = "../../dataset"
     filters = ("red", "green", "blue", "yellow")
     batch_size = 200
+    num_chunk_items = 200
 
     # Just for testing; set to None to store all images in hdf5
     num_images = None
@@ -122,11 +123,15 @@ if __name__ == "__main__":
                     with h5.File(hdf5_path, "w") as f:
                         f.create_dataset(
                             "images",
-                            maxshape=(len(image_names), *images.shape[1:]),
                             data=images,
+                            maxshape=(len(image_names), *images.shape[1:]),
+                            chunks=(num_chunk_items, *images.shape[1:]),
                         )
                         f.create_dataset(
-                            "names", maxshape=(len(image_names),), data=names
+                            "names",
+                            data=names,
+                            maxshape=(len(image_names),),
+                            chunks=(num_chunk_items,),
                         )
                 else:
                     # Append the new images and names to the existing hdf5 file
