@@ -224,7 +224,7 @@ class KFoldTrainer(object):
     def __init__(self, *args, **kwargs):
         self.args = args
         self.kwargs = kwargs
-        self.trainers = []
+        self.resumed_trainers = []
 
     def fit(self, train_loaders, val_loaders, output_fn=None):
         """Fit the model given training and validation data.
@@ -255,23 +255,24 @@ class KFoldTrainer(object):
             print("-" * 80)
             print()
 
-            # If resume has been called self.trainers won't be empty and k+1 will be
-            # smaller than the current length of self.trainers. self.trainers[k] is a
-            # loaded checkpoint that has been fully trained.
-            # When k+1 equals the number of self.trainers then self.trainers[k] is a
-            # Trainer object loaded from a checkpoint that might not have finished
-            # training; therefore, training will resume.
-            # If k+1 is greater than the no. of self.trainers, then a new Trainer object
-            # is created and trained from scratch.
-            if k < len(self.trainers) - 1:
+            if k < len(self.resumed_trainers) - 1:
+                # Found a trainer that is already fully trained; we know that
+                # because this is not the last trainer from the checkpoint
                 print("Fold already trained!")
-                checkpoints.append(self.trainers[k].trainer_checkpoint.best_checkpoint)
+                trainer = self.resumed_trainers[k]
+                checkpoints.append(trainer.trainer_checkpoint.best_checkpoint)
                 continue
-            elif k > len(self.trainers) - 1:
-                # Create a new trainer object to train from scratch
-                self.trainers.append((self._new_trainer(k + 1)))
+            elif k == len(self.resumed_trainers) - 1:
+                # Last trainer from the checkpoint; the last k-fold training process was
+                # interrupted during the training of this fold. Load the trainer and
+                # resume training
+                print("Fold partially trained. Resuming training...")
+                trainer = self.resumed_trainers[k]
+            else:
+                # No trainers from checkpoint found; create a new trainer to train from
+                # scratch
+                trainer = self._new_trainer(k + 1)
 
-            trainer = self.trainers[k]
             best = trainer.fit(train_loader, val_loader, output_fn=output_fn)
             checkpoints.append(best)
             print()
@@ -285,12 +286,12 @@ class KFoldTrainer(object):
 
         avg_scores_train = np.mean(scores_train, axis=0)
         avg_scores_val = np.mean(scores_val, axis=0)
+        print()
         print(
             "Average training CV metrics: {}".format(
                 np.round(avg_scores_train, 4).tolist()
             )
         )
-        print()
         print(
             "Average validation CV metrics: {}".format(
                 np.round(avg_scores_val, 4).tolist()
@@ -307,8 +308,8 @@ class KFoldTrainer(object):
         If there are no subdirectories that follow the mentioned pattern a
         `FileNotFoundError` is raised.
 
-        The `Trainer` objects loaded from the checkpoints are added to the `trainers`
-        attribute.
+        The `Trainer` objects loaded from the checkpoints are added to the
+        `resumed_trainers` attribute.
 
         Arguments:
             checkpoint_dir (str): path to the directory where the checkpoints are saved.
@@ -320,7 +321,7 @@ class KFoldTrainer(object):
         while os.path.isdir(os.path.join(checkpoint_dir, "fold_" + str(fold_idx))):
             trainer = self._new_trainer(fold_idx)
             trainer.resume(os.path.join(checkpoint_dir, "fold_" + str(fold_idx)))
-            self.trainers.append(trainer)
+            self.resumed_trainers.append(trainer)
             fold_idx += 1
 
         if fold_idx == 1:
