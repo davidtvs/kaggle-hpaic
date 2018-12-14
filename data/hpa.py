@@ -151,8 +151,11 @@ class HPADataset(Dataset):
             numpy.ndarray: the training set indices for the subset.
 
         """
+        if len(X) != len(y):
+            raise ValueError("X and y must have the same number of samples")
+
         if self.subset == 1:
-            return X, y
+            return np.arange(len(X))
 
         msss = MultilabelStratifiedShuffleSplit(
             n_splits=1,
