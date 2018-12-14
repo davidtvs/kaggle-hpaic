@@ -65,18 +65,17 @@ if __name__ == "__main__":
     image_size = (config["img_h"], config["img_w"])
     if config["aug"]:
         tf_train = tf.Augmentation(image_size)
-        tf_val = tf.Resize(image_size)
     else:
         tf_train = tf.Resize(image_size)
-        tf_val = tf.Resize(image_size)
 
+    print("Image size:", image_size)
     print("Sample transform when training:", tf_train)
-    print("Sample transform when validation:", tf_val)
 
     # Initialize the dataset
     dataset = HPADatasetHDF5(
         config["dataset_dir"],
         config["image_mode"],
+        transform=tf_train,
         subset=config["subset"],
         random_state=random_state,
     )
@@ -86,6 +85,8 @@ if __name__ == "__main__":
 
     # Intiliaze the sampling strategy
     train_sampler = utils.get_sampler(config["sampler"])
+    if train_sampler is not None:
+        train_sampler = train_sampler(dataset.targets)
     print("Training sampler instance:", train_sampler)
 
     # Compute class weights

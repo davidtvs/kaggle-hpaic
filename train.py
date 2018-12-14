@@ -76,6 +76,7 @@ if __name__ == "__main__":
         tf_train = tf.Resize(image_size)
         tf_val = tf.Resize(image_size)
 
+    print("Image size:", image_size)
     print("Sample transform when training:", tf_train)
     print("Sample transform when validation:", tf_val)
 
