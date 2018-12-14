@@ -306,7 +306,11 @@ class HPADatasetHDF5(HPADataset):
         """
         true_idx = self.subset_idx[index]
 
-        # Open the hdf5 file in read mode
+        # Open the hdf5 file in read mode. Note that the h5py.File must be open here by
+        # the process that is going to use the file, i.e, it can't be open by the main
+        # process in __init__ for example. See the following for more details:
+        # https://discuss.pytorch.org/t/hdf5-multi-threaded-alternative/6189/2
+        # https://stackoverflow.com/questions/46045512/h5py-hdf5-database-randomly-returning-nans-and-near-very-small-data-with-multi
         with h5.File(self.storage, "r") as f:
             # Read the name of the sample at the given index and check if it matches the
             # expected name from the internal list of sample names
