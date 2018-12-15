@@ -1,4 +1,5 @@
 import os
+import numpy as np
 import torch
 import torch.optim as optim
 from argparse import ArgumentParser
@@ -156,5 +157,20 @@ if __name__ == "__main__":
     if config["resume"] and os.path.isdir(config["resume"]):
         trainer.resume(config["resume"])
 
-    # Start training
-    trainer.fit(train_loaders, val_loaders, output_fn=sigmoid_threshold)
+    scores, checkpoints = trainer.fit(
+        train_loaders, val_loaders, output_fn=sigmoid_threshold
+    )
+
+    # Compute the cross-validation score (average of all folds)
+    avg_scores_train = np.mean(scores[0], axis=0)
+    avg_scores_val = np.mean(scores[1], axis=0)
+    print(
+        "K-fold average training metrics: {}".format(
+            np.round(avg_scores_train, 4).tolist()
+        )
+    )
+    print(
+        "K-fold average validation CV metrics: {}".format(
+            np.round(avg_scores_val, 4).tolist()
+        )
+    )

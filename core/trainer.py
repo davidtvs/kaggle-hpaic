@@ -226,20 +226,28 @@ class KFoldTrainer(object):
         self.kwargs = kwargs
         self.resumed_trainers = []
 
-    def fit(self, train_loaders, val_loaders, output_fn=None):
+    def fit(self, train_loaders, val_loaders, output_fn=None, retcheckpoints=True):
         """Fit the model given training and validation data.
 
         Arguments:
             train_loaders (array-like): k training dataloaders.
             val_loaders (array-like): k validation dataloaders.
-            output_fn (function): a function to convert the model output into
+            output_fn (function, optional): a function to convert the model output into
                 predictions. When set to `None`, the predictions are the same as the
                 model output. Default: None.
+            retcheckpoints (bool, optional): if True, return (scores, checkpoints),
+                where checkpoints is a list of dictionaries that represents the state of
+                the trainer when the best score was found. Returning checkpoints
+                requires GPU memory when training with a GPU. Default: True.
 
         Returns:
+            tuple: the training and validation scores
+                list: the training metrics when the best validation metric was found for
+                    each fold. Each list element is a MetricList object.
+                list: the best validation score was found for each fold. Each list
+                    element is a MetricList object.
             dict: the state of the trainer (checkpoint) when the best validation score
-            was found,
-            list: the cross-validation score (the average of each score)
+            was found.
 
         """
         # Zip the dataloaders for cleaner iteration
@@ -247,7 +255,7 @@ class KFoldTrainer(object):
         loaders = zip(train_loaders, val_loaders)
 
         # Lists that will store the best checkpoints for each fold
-        checkpoints = []
+        checkpoints, scores_train, scores_val = [], [], []
         for k, (train_loader, val_loader) in enumerate(loaders):
             print()
             print("-" * 80)
@@ -274,31 +282,20 @@ class KFoldTrainer(object):
                 trainer = self._new_trainer(k + 1)
 
             best = trainer.fit(train_loader, val_loader, output_fn=output_fn)
-            checkpoints.append(best)
+            scores_train.append(best["metric"]["train"][-1].value())
+            scores_val.append(best["metric"]["val"][-1].value())
+            if retcheckpoints:
+                checkpoints.append(best)
             print()
 
-        # Compute the average score for each metric
-        scores_train = []
-        scores_val = []
-        for checkpoint in checkpoints:
-            scores_train.append(checkpoint["metric"]["train"][-1].value())
-            scores_val.append(checkpoint["metric"]["val"][-1].value())
+        # Return scores and checkpoints if retcheckpoints is True; otherwise return just
+        # the scores
+        if retcheckpoints:
+            out = ((scores_train, scores_val), checkpoints)
+        else:
+            out = (scores_train, scores_val)
 
-        avg_scores_train = np.mean(scores_train, axis=0)
-        avg_scores_val = np.mean(scores_val, axis=0)
-        print()
-        print(
-            "Average training CV metrics: {}".format(
-                np.round(avg_scores_train, 4).tolist()
-            )
-        )
-        print(
-            "Average validation CV metrics: {}".format(
-                np.round(avg_scores_val, 4).tolist()
-            )
-        )
-
-        return checkpoints, (avg_scores_train, avg_scores_val)
+        return out
 
     def resume(self, checkpoint_dir):
         """Resumes training given the checkpoint location.
