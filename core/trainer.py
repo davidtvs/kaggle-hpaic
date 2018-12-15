@@ -1,6 +1,5 @@
 import os
 import torch
-import numpy as np
 from tqdm import tqdm
 from copy import deepcopy
 from .early_stop import EarlyStopping

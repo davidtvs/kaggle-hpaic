@@ -25,38 +25,6 @@ def arguments():
     return parser.parse_args()
 
 
-def sigmoid_threshold(tensor, threshold=0.5, high=1, low=0):
-    """Applies the sigmoid function to the tensor and thresholds the values
-
-    out_tensor(i) = low(i) if sigmoid(tensor(i)) <= threshold(i)
-                  = high(i) if sigmoid(tensor(i)) > threshold(i)
-
-    Arguments:
-        tensor (torch.Tensor): the tensor to threshold.
-        threshold (scalar or array-like): the threshold value or values. Can be a list,
-            tuple, NumPy ndarray, scalar, and other types. If array-like, the size must
-            match the size of `tensor`. Default: 0.5.
-        high (scalar or array-like): the assigned value when the sigmoid of the tensor
-            is greater than `threshold`. Can be a list, tuple, NumPy ndarray, scalar,
-            and other types. If array-like, the size must match the size of `tensor`.
-            Default: 1.
-        high (scalar or array-like): the assigned value when the sigmoid of the tensor
-            is less than or equal to `threshold`. Can be a list, tuple, NumPy ndarray,
-            scalar, and other types. If array-like, the size must match the size of
-            `tensor`. Default: 0.
-
-    Returns:
-        torch.Tensor: same shape as the input with values {low, high}.
-    """
-    threshold = torch.tensor(threshold).to(tensor.device)
-    high = torch.tensor(high).to(tensor.device)
-    low = torch.tensor(low).to(tensor.device)
-
-    out = torch.sigmoid(tensor)
-
-    return torch.where(out > threshold, high, low)
-
-
 if __name__ == "__main__":
     # Get script arguments and JSON configuration
     args = arguments()
@@ -158,7 +126,7 @@ if __name__ == "__main__":
         trainer.resume(config["resume"])
 
     scores, checkpoints = trainer.fit(
-        train_loaders, val_loaders, output_fn=sigmoid_threshold
+        train_loaders, val_loaders, output_fn=utils.sigmoid_threshold
     )
 
     # Compute the cross-validation score (average of all folds)
@@ -174,3 +142,25 @@ if __name__ == "__main__":
             np.round(avg_scores_val, 4).tolist()
         )
     )
+
+    # Find the best threshold
+    print()
+    print("-" * 80)
+    print("Searching for the best thresholds")
+    print("-" * 80)
+    for fold, (checkpoint, val_loader) in enumerate(zip(checkpoints, val_loaders)):
+        print()
+        print("-" * 80)
+        print("Fold {}/{}".format(fold + 1, len(checkpoints)))
+        print("-" * 80)
+        print()
+        net.load_state_dict(checkpoint["model"])
+        threshold = utils.find_threshold(
+            net, val_loader, metrics[0], device=device, num_thresholds=1000
+        )
+        print("Best threshold:\n", threshold)
+
+        threshold = utils.find_class_threshold(
+            net, val_loader, metrics[0], device=device, num_thresholds=500
+        )
+        print("Best thresholds per class:\n", threshold)
