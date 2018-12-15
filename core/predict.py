@@ -2,16 +2,32 @@ import torch
 from tqdm import tqdm
 
 
-def predict(model, dataloader, output_fn=None, device=None):
-    pred_list = list(
-        predict_yield_batch(model, dataloader, output_fn=output_fn, device=device)
+def predict(model, dataloader, output_fn=None, device=None, ret_targets=False):
+    out = list(
+        predict_yield_batch(
+            model,
+            dataloader,
+            output_fn=output_fn,
+            device=device,
+            ret_targets=ret_targets,
+        )
     )
-    predictions = torch.cat(pred_list, dim=0)
+    if ret_targets:
+        predictions = [pred for pred, _ in out]
+        predictions = torch.cat(predictions, dim=0)
+        targets = [target for _, target in out]
+        targets = torch.cat(targets, dim=0)
 
-    return predictions
+        return predictions, targets
+    else:
+        predictions = torch.cat(out, dim=0)
+
+        return predictions
 
 
-def predict_yield_batch(model, dataloader, output_fn=None, device=None):
+def predict_yield_batch(
+    model, dataloader, output_fn=None, device=None, ret_targets=False
+):
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
     device = torch.device(device)
@@ -20,7 +36,13 @@ def predict_yield_batch(model, dataloader, output_fn=None, device=None):
     for step, batch_dict in enumerate(tqdm(dataloader)):
         inputs = batch_dict["sample"]
         inputs = inputs.to(device)
-        yield predict_batch(model, inputs, output_fn=output_fn)
+        targets = batch_dict["target"]
+        predictions = predict_batch(model, inputs, output_fn=output_fn)
+
+        if ret_targets:
+            yield predictions, targets
+        else:
+            yield predictions
 
 
 def predict_batch(model, input, output_fn=None):
