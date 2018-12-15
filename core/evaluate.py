@@ -10,14 +10,16 @@ def evaluate(model, dataloader, metrics, criterion=None, output_fn=None, device=
     model = model.to(device).eval()
 
     metrics.reset()
-    for step, (images, targets) in enumerate(tqdm(dataloader)):
-        images = images.to(device)
+    for step, batch_dict in enumerate(tqdm(dataloader)):
+        inputs = batch_dict["sample"]
+        inputs = inputs.to(device)
+        targets = batch_dict["target"]
 
         # We don't want to compute gradients, deactivate the autograd engine, this also
         # saves a lot of memory
         with torch.no_grad():
             # Do a froward pass with the images and compute the loss
-            outputs = model(images)
+            outputs = model(inputs)
             if criterion is not None:
                 loss = criterion(outputs, targets)
 
@@ -28,10 +30,10 @@ def evaluate(model, dataloader, metrics, criterion=None, output_fn=None, device=
             outputs = output_fn(outputs)
 
         # The loss is averaged for the batch size and since later it will be divided by
-        # the length of the dataloader (number of images) we have to multiply by the
-        # number of images in the batch
+        # the length of the dataloader (number of inputs) we have to multiply by the
+        # number of inputs in the batch
         if criterion is not None:
-            loss += loss.item() * images.size(0)
+            loss += loss.item() * inputs.size(0)
         else:
             loss = None
 

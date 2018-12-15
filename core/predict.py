@@ -17,9 +17,10 @@ def predict_yield_batch(model, dataloader, output_fn=None, device=None):
     device = torch.device(device)
     model = model.to(device).eval()
 
-    for step, (images, _) in enumerate(tqdm(dataloader)):
-        images = images.to(device)
-        yield predict_batch(model, images, output_fn=output_fn)
+    for step, batch_dict in enumerate(tqdm(dataloader)):
+        inputs = batch_dict["sample"]
+        inputs = inputs.to(device)
+        yield predict_batch(model, inputs, output_fn=output_fn)
 
 
 def predict_batch(model, input, output_fn=None):
