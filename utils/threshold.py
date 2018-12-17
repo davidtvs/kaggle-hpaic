@@ -1,6 +1,5 @@
 import torch
 import numpy as np
-from copy import deepcopy
 import core
 
 
@@ -24,7 +23,15 @@ def sigmoid_threshold(tensor, threshold=0.5):
     return out > threshold
 
 
-def find_threshold(model, dataloader, metric, device=None, num_thresholds=100):
+def find_single_threshold(
+    model,
+    dataloader,
+    metric,
+    device=None,
+    min_threshold=0.2,
+    max_threshold=0.8,
+    num_thresholds=100,
+):
     """Searches for the decision threshold that yields the best metric.
 
     Arguments:
@@ -35,11 +42,15 @@ def find_threshold(model, dataloader, metric, device=None, num_thresholds=100):
             optional ordinal for the device type (e.g. "cuda:X", where is the ordinal).
             Alternatively, can be an object representing the device on which the
             computation will take place. Default: None, uses the same device as `model`.
-        num_thresholds (int, optional): the number of thresholds to test between 0
-            and 1. Default: 100.
+        min_threshold (float, optional): the lowest threshold to be tested.
+            Default: 0.2.
+        max_threshold (float, optional): the highest threshold to be tested.
+            Default: 0.8.
+        num_thresholds (int, optional): the number of thresholds to test between
+            ``min_threshold```and ``max_threshold``. Default: 100.
 
     Returns:
-        int: the best threshold value.
+        float: the best threshold value.
 
     """
     # Instead of generating predictions for every threshold, we'll get the logits and
@@ -48,7 +59,7 @@ def find_threshold(model, dataloader, metric, device=None, num_thresholds=100):
 
     # thresholds is a vector that contains all the thresholds to be tested.
     # best_thresholds will store the threshold that yields the highest metric.
-    thresholds = np.linspace(0, 1, num_thresholds, dtype=np.float)
+    thresholds = np.linspace(min_threshold, max_threshold, num_thresholds)
     best_threshold = None
     best_metric = None
     for idx, th in enumerate(thresholds):
@@ -62,7 +73,15 @@ def find_threshold(model, dataloader, metric, device=None, num_thresholds=100):
     return best_threshold
 
 
-def find_class_threshold(model, dataloader, metric, device=None, num_thresholds=100):
+def find_class_threshold(
+    model,
+    dataloader,
+    metric,
+    device=None,
+    min_threshold=0.2,
+    max_threshold=0.8,
+    num_thresholds=100,
+):
     """Searches for the decision threshold that yields the best metric for each class.
 
     Arguments:
@@ -73,8 +92,12 @@ def find_class_threshold(model, dataloader, metric, device=None, num_thresholds=
             optional ordinal for the device type (e.g. "cuda:X", where is the ordinal).
             Alternatively, can be an object representing the device on which the
             computation will take place. Default: None, uses the same device as `model`.
-        num_thresholds (int, optional): the number of thresholds to test between 0
-            and 1. Default: 100.
+        min_threshold (float, optional): the lowest threshold to be tested.
+            Default: 0.2.
+        max_threshold (float, optional): the highest threshold to be tested.
+            Default: 0.8.
+        num_thresholds (int, optional): the number of thresholds to test between
+            ``min_threshold```and ``max_threshold``. Default: 100.
 
     Returns:
         numpy.ndarray: the best threshold value per class. Shape: (num_classes,)
@@ -87,7 +110,7 @@ def find_class_threshold(model, dataloader, metric, device=None, num_thresholds=
 
     # thresholds is a vector that contains all the thresholds to be tested. Best
     # thresholds is an array that stores the best threshold found for each class
-    thresholds = np.linspace(0, 1, num_thresholds, dtype=np.float)
+    thresholds = np.linspace(min_threshold, max_threshold, num_thresholds)
     best_thresholds = np.zeros((num_classes,))
     for class_idx in range(num_classes):
         # For each class all thresholds are tested. The threshold that yields the
@@ -106,3 +129,44 @@ def find_class_threshold(model, dataloader, metric, device=None, num_thresholds=
                 best_thresholds[class_idx] = th
 
     return best_thresholds
+
+
+def find_threshold(models, dataloaders, metric, device=None, num_thresholds=1000):
+    """Searches for the best single and per-class decision thresholds for each model
+
+    Wrapper function around ``find_single_threshold```and ``find_class_threshold``
+    built to handle multiple models and return the single and per-class best decision
+    thresholds for each pair in the array-like objects ``models`` and ``dataloaders``.
+
+    Arguments:
+        models (array-like of torch.nn.Module): an array of models.
+        dataloader (array-like of torch.utils.data.DataLoader): an array of dataloaders
+            for validation sets.
+        metric (metric.Metric): metric to monitor.
+        device (str or torch.device, optional): a string ("cpu" or "cuda") with an
+            optional ordinal for the device type (e.g. "cuda:X", where is the ordinal).
+            Alternatively, can be an object representing the device on which the
+            computation will take place. Default: None, uses the same device as `model`.
+        num_thresholds (int, optional): the number of thresholds to test between 0
+            and 1. Default: 1000.
+
+    Returns:
+        Generator object that yields:
+            list: the best single decision threshold value for each model. Same length
+                as ``models``.
+            list: the best per-class decision thresholds for each model. Same length as
+                ``models``.
+
+    """
+    for model, loader in zip(models, dataloaders):
+        # Single threshold
+        single_threshold = find_single_threshold(
+            model, loader, metric, device=device, num_thresholds=num_thresholds
+        )
+
+        # Per-class
+        class_thresholds = find_class_threshold(
+            model, loader, metric, device=device, num_thresholds=num_thresholds
+        )
+
+        yield single_threshold, class_thresholds
