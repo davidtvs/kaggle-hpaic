@@ -108,7 +108,7 @@ if __name__ == "__main__":
 
     # Create a new KFoldTrainer instance and check if there is a checkpoint to resume
     # from
-    trainer = core.KFoldTrainer(
+    ktrainer = core.KFoldTrainer(
         net,
         config["epochs"],
         optimizer,
@@ -123,11 +123,9 @@ if __name__ == "__main__":
         device=device,
     )
     if config["resume"] and os.path.isdir(config["resume"]):
-        trainer.resume(config["resume"])
+        ktrainer.resume(config["resume"])
 
-    scores, checkpoints = trainer.fit(
-        train_loaders, val_loaders, output_fn=utils.sigmoid_threshold
-    )
+    scores = ktrainer.fit(train_loaders, val_loaders, output_fn=utils.sigmoid_threshold)
 
     # Compute the cross-validation score (average of all folds)
     avg_scores_train = np.mean(scores[0], axis=0)
@@ -142,25 +140,3 @@ if __name__ == "__main__":
             np.round(avg_scores_val, 4).tolist()
         )
     )
-
-    # Find the best threshold
-    print()
-    print("-" * 80)
-    print("Searching for the best thresholds")
-    print("-" * 80)
-    for fold, (checkpoint, val_loader) in enumerate(zip(checkpoints, val_loaders)):
-        print()
-        print("-" * 80)
-        print("Fold {}/{}".format(fold + 1, len(checkpoints)))
-        print("-" * 80)
-        print()
-        net.load_state_dict(checkpoint["model"])
-        threshold = utils.find_threshold(
-            net, val_loader, metrics[0], device=device, num_thresholds=1000
-        )
-        print("Best threshold:\n", threshold)
-
-        threshold = utils.find_class_threshold(
-            net, val_loader, metrics[0], device=device, num_thresholds=500
-        )
-        print("Best thresholds per class:\n", threshold)

@@ -65,7 +65,27 @@ class Trainer:
         self.loss_history = {"train": [], "val": []}
         self.metric_history = {"train": [], "val": []}
 
-    def fit(self, train_dataloader, val_dataloader, output_fn=None):
+    def fit(
+        self, train_dataloader, val_dataloader, output_fn=None, ret_checkpoint=False
+    ):
+        """Fit the model given training and validation data.
+
+        Arguments:
+            train_loaders (array-like): k training dataloaders.
+            val_loaders (array-like): k validation dataloaders.
+            output_fn (function, optional): a function to convert the model output into
+                predictions. When set to `None`, the predictions are the same as the
+                model output. Default: None.
+            ret_checkpoint (bool, optional): if True, returns a dictionary that
+                represents the state of the trainer when the best score was found.
+                Returning checkpoints requires GPU memory when training with a GPU.
+                Default: False.
+
+        Returns:
+            dict: the state of the trainer (checkpoint) when the best validation score
+            was found. Returned only if ret_checkpoint is True.
+
+        """
         # Start training the model
         for self.epoch in range(self.start_epoch, self.num_epochs + 1):
             print("Epoch {}/{}".format(self.epoch, self.num_epochs))
@@ -90,7 +110,9 @@ class Trainer:
                 print("Epoch {}: early stopping".format(self.epoch))
                 break
 
-        return self.trainer_checkpoint.best_checkpoint
+        # Return the best checkpoint if ret_checkpoint is True
+        if ret_checkpoint:
+            return self.trainer_checkpoint.best_checkpoint
 
     def _run_epoch(self, dataloader, is_training, output_fn=None):
         # Set model to training mode if training; otherwise, set it to evaluation mode
@@ -223,9 +245,9 @@ class KFoldTrainer(object):
     def __init__(self, *args, **kwargs):
         self.args = args
         self.kwargs = kwargs
-        self.resumed_trainers = []
+        self.trainers = []
 
-    def fit(self, train_loaders, val_loaders, output_fn=None, retcheckpoints=True):
+    def fit(self, train_loaders, val_loaders, output_fn=None, ret_checkpoints=False):
         """Fit the model given training and validation data.
 
         Arguments:
@@ -234,10 +256,10 @@ class KFoldTrainer(object):
             output_fn (function, optional): a function to convert the model output into
                 predictions. When set to `None`, the predictions are the same as the
                 model output. Default: None.
-            retcheckpoints (bool, optional): if True, return (scores, checkpoints),
+            ret_checkpoints (bool, optional): if True, return (scores, checkpoints),
                 where checkpoints is a list of dictionaries that represents the state of
                 the trainer when the best score was found. Returning checkpoints
-                requires GPU memory when training with a GPU. Default: True.
+                requires GPU memory when training with a GPU. Default: False.
 
         Returns:
             tuple: the training and validation scores
@@ -246,7 +268,7 @@ class KFoldTrainer(object):
                 list: the best validation score was found for each fold. Each list
                     element is a MetricList object.
             dict: the state of the trainer (checkpoint) when the best validation score
-            was found.
+            was found. Returned only if ret_checkpoints is True.
 
         """
         # Zip the dataloaders for cleaner iteration
@@ -262,34 +284,34 @@ class KFoldTrainer(object):
             print("-" * 80)
             print()
 
-            if k < len(self.resumed_trainers) - 1:
+            if k < len(self.trainers) - 1:
                 # Found a trainer that is already fully trained; we know that
                 # because this is not the last trainer from the checkpoint
                 print("Fold already trained!")
-                trainer = self.resumed_trainers[k]
-                checkpoints.append(trainer.trainer_checkpoint.best_checkpoint)
                 continue
-            elif k == len(self.resumed_trainers) - 1:
+            elif k == len(self.trainers) - 1:
                 # Last trainer from the checkpoint; the last k-fold training process was
                 # interrupted during the training of this fold. Load the trainer and
                 # resume training
                 print("Fold partially trained. Resuming training...")
-                trainer = self.resumed_trainers[k]
             else:
                 # No trainers from checkpoint found; create a new trainer to train from
                 # scratch
-                trainer = self._new_trainer(k + 1)
+                self.trainers.append(self._new_trainer(k + 1))
 
-            best = trainer.fit(train_loader, val_loader, output_fn=output_fn)
+            best = self.trainers[k].fit(
+                train_loader, val_loader, output_fn=output_fn, ret_checkpoint=True
+            )
             scores_train.append(best["metric"]["train"][-1].value())
             scores_val.append(best["metric"]["val"][-1].value())
-            if retcheckpoints:
-                checkpoints.append(best)
             print()
 
-        # Return scores and checkpoints if retcheckpoints is True; otherwise return just
-        # the scores
-        if retcheckpoints:
+        # Return scores and checkpoints if ret_checkpoints is True; otherwise return
+        # just the scores
+        if ret_checkpoints:
+            for trainer in self.trainers:
+                checkpoints.append(trainer.trainer_checkpoint.best_checkpoint)
+
             out = ((scores_train, scores_val), checkpoints)
         else:
             out = (scores_train, scores_val)
@@ -313,11 +335,12 @@ class KFoldTrainer(object):
         """
         # Load the checkpoint for each fold, provided that the subdirectory is properly
         # named
+        self.trainers = []
         fold_idx = 1
         while os.path.isdir(os.path.join(checkpoint_dir, "fold_" + str(fold_idx))):
             trainer = self._new_trainer(fold_idx)
             trainer.resume(os.path.join(checkpoint_dir, "fold_" + str(fold_idx)))
-            self.resumed_trainers.append(trainer)
+            self.trainers.append(trainer)
             fold_idx += 1
 
         if fold_idx == 1:
