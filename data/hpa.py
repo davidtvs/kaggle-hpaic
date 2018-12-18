@@ -12,6 +12,9 @@ class HPADataset(Dataset):
     # CSV training ground-truth
     target_csv_file = "train.csv"
 
+    # CSV sample submission
+    sample_csv_file = "sample_submission.csv"
+
     # Class dictionary
     label_to_name = {
         0: "Nucleoplasm",
@@ -80,17 +83,16 @@ class HPADataset(Dataset):
             self.sample_names = image_names[self.subset_idx]
             self.targets = targets[self.subset_idx]
         else:
-            # Get the list of images from the test directory and remove the filter from
-            # the file name
-            sample_names = sorted(os.listdir(self.data_dir))
-            sample_names = [name.rsplit("_", 1)[0] for name in sample_names]
-            sample_names = sorted(set(sample_names))
+            # Load sample CSV and get the sample names from the Id column
+            csv_path = os.path.join(self.root_dir, self.sample_csv_file)
+            df = pd.read_csv(csv_path)
+            self.sample_names = df["Id"].values
 
-            # Convert to numpy array of objects for consistency with the training set
-            self.sample_names = np.array(sample_names, dtype=np.object)
-
-            # The test set ground-truth is not public
-            self.targets = None
+            # The test set ground-truth is not public; return an array with the right
+            # shape but filled with zeros
+            self.targets = np.zeros(
+                (len(self.sample_names), len(self.label_to_name)), dtype=int
+            )
 
     def __getitem__(self, index):
         """Gets a single item from the dataset.
@@ -304,7 +306,10 @@ class HPADatasetHDF5(HPADataset):
         Returns:
             PIL.Image: the image with shape (H, W, C)
         """
-        true_idx = self.subset_idx[index]
+        if self.subset_idx is None:
+            true_idx = index
+        else:
+            true_idx = self.subset_idx[index]
 
         # Open the hdf5 file in read mode. Note that the h5py.File must be open here by
         # the process that is going to use the file, i.e, it can't be open by the main
