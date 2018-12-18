@@ -100,7 +100,7 @@ def find_class_threshold(
             ``min_threshold```and ``max_threshold``. Default: 100.
 
     Returns:
-        numpy.ndarray: the best threshold value per class. Shape: (num_classes,)
+        list: the best threshold value per class. Same length as the number of classes
 
     """
     # Instead of generating predictions for every threshold, we'll get the logits and
@@ -128,7 +128,7 @@ def find_class_threshold(
                 best_metric = metric.value()
                 best_thresholds[class_idx] = th
 
-    return best_thresholds
+    return best_thresholds.tolist()
 
 
 def find_threshold(models, dataloaders, metric, device=None, num_thresholds=1000):
