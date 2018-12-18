@@ -32,7 +32,6 @@ class Checkpoint(object):
             pass
         self.model_path = os.path.join(checkpoint_dir, "model.pth")
         self.summary_path = os.path.join(checkpoint_dir, "summary.json")
-        self.best_checkpoint = None
         self.mode = mode
         if mode == "min":
             self.best_metric = np.inf
@@ -54,12 +53,9 @@ class Checkpoint(object):
         if self.cmp_op(metric - self.threshold, self.best_metric):
             # Make a copy of the metrics and checkpoint to isolate them
             self.best_metric = deepcopy(metric)
-            self.best_checkpoint = deepcopy(checkpoint)
             torch.save(checkpoint, self.model_path)
             self._save_history(
-                self.best_checkpoint["epoch"],
-                self.best_checkpoint["loss"],
-                self.best_checkpoint["metric"],
+                checkpoint["epoch"], checkpoint["loss"], checkpoint["metric"]
             )
 
     def _save_history(self, epoch, loss, metric):

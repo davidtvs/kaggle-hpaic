@@ -123,7 +123,7 @@ if __name__ == "__main__":
         device=device,
     )
     if config["resume"] and os.path.isdir(config["resume"]):
-        ktrainer.resume(config["resume"])
+        ktrainer.load_checkpoint(config["resume"])
 
     scores = ktrainer.fit(train_loaders, val_loaders, output_fn=utils.sigmoid_threshold)
 

@@ -30,6 +30,7 @@ class Trainer:
         self.start_epoch = 1
         self.epoch = self.start_epoch
         self.num_epochs = num_epochs
+        self.checkpoint_dir = checkpoint_dir
 
         # Handle types of metrics
         if isinstance(metrics, MetricList):
@@ -43,7 +44,7 @@ class Trainer:
             patience=stop_patience, mode=mode, threshold=threshold
         )
         self.trainer_checkpoint = Checkpoint(
-            checkpoint_dir, mode=mode, threshold=threshold
+            self.checkpoint_dir, mode=mode, threshold=threshold
         )
         self.lr_scheduler = ReduceLROnPlateau(
             self.optimizer,
@@ -112,7 +113,8 @@ class Trainer:
 
         # Return the best checkpoint if ret_checkpoint is True
         if ret_checkpoint:
-            return self.trainer_checkpoint.best_checkpoint
+            checkpoint_path = os.path.join(self.checkpoint_dir, "model.pth")
+            return torch.load(checkpoint_path, map_location=torch.device("cpu"))
 
     def _run_epoch(self, dataloader, is_training, output_fn=None):
         # Set model to training mode if training; otherwise, set it to evaluation mode
@@ -153,7 +155,7 @@ class Trainer:
             metric_val = self.metrics[0].value()
             self.early_stop.step(metric_val)
             self.lr_scheduler.step(metric_val)
-            self.trainer_checkpoint.step(metric_val, self._get_state())
+            self.trainer_checkpoint.step(metric_val, self.state_dict())
 
         return epoch_loss
 
@@ -184,7 +186,7 @@ class Trainer:
 
         return loss
 
-    def _get_state(self):
+    def state_dict(self):
         # Make sure the model is in training mode to save the state of layers like
         # batch normalization and dropout.
         self.model.train()
@@ -201,22 +203,18 @@ class Trainer:
 
         return checkpoint
 
-    def resume(self, checkpoint_dir):
-        checkpoint_path = os.path.join(checkpoint_dir, "model.pth")
-        saved_trainer = torch.load(checkpoint_path, map_location=torch.device("cpu"))
-
+    def load_state_dict(self, state_dict):
         # Load the states from the checkpoint
-        self.start_epoch = saved_trainer["epoch"] + 1
-        self.model.load_state_dict(saved_trainer["model"])
-        self.optimizer.load_state_dict(saved_trainer["optimizer"])
-        self.lr_scheduler.load_state_dict(saved_trainer["lr_scheduler"])
-        self.early_stop.load_state_dict(saved_trainer["early_stop"])
-        self.loss_history = saved_trainer["loss"]
-        self.metric_history = saved_trainer["metric"]
+        self.start_epoch = state_dict["epoch"] + 1
+        self.model.load_state_dict(state_dict["model"])
+        self.optimizer.load_state_dict(state_dict["optimizer"])
+        self.lr_scheduler.load_state_dict(state_dict["lr_scheduler"])
+        self.early_stop.load_state_dict(state_dict["early_stop"])
+        self.loss_history = state_dict["loss"]
+        self.metric_history = state_dict["metric"]
 
         # Because trainer_checkpoint saved the model its up-to-date state cannot be
         # included in the checkpoint. Thus, we have to manually restore its state.
-        self.trainer_checkpoint.best_checkpoint = deepcopy(saved_trainer)
         self.trainer_checkpoint.best_metric = self.early_stop.best_metric
 
         # If the optimizer is loaded from a checkpoint the states are loaded to the CPU.
@@ -228,6 +226,12 @@ class Trainer:
             for k, v in state.items():
                 if torch.is_tensor(v):
                     state[k] = v.to(self.device)
+
+    def load_checkpoint(self, checkpoint_dir, filename="model.pth"):
+        checkpoint_path = os.path.join(checkpoint_dir, filename)
+        state_dict = torch.load(checkpoint_path, map_location=torch.device("cpu"))
+
+        self.load_state_dict(state_dict)
 
 
 class KFoldTrainer(object):
@@ -299,35 +303,32 @@ class KFoldTrainer(object):
                 # scratch
                 self.trainers.append(self._new_trainer(k + 1))
 
-            best = self.trainers[k].fit(
+            checkpoint = self.trainers[k].fit(
                 train_loader, val_loader, output_fn=output_fn, ret_checkpoint=True
             )
-            scores_train.append(best["metric"]["train"][-1].value())
-            scores_val.append(best["metric"]["val"][-1].value())
+            scores_train.append(checkpoint["metric"]["train"][-1].value())
+            scores_val.append(checkpoint["metric"]["val"][-1].value())
+            if ret_checkpoints:
+                checkpoints.append(checkpoint)
             print()
 
-        # Return scores and checkpoints if ret_checkpoints is True; otherwise return
-        # just the scores
         if ret_checkpoints:
-            for trainer in self.trainers:
-                checkpoints.append(trainer.trainer_checkpoint.best_checkpoint)
-
             out = ((scores_train, scores_val), checkpoints)
         else:
             out = (scores_train, scores_val)
 
         return out
 
-    def resume(self, checkpoint_dir):
-        """Resumes training given the checkpoint location.
+    def load_checkpoint(self, checkpoint_dir):
+        """Loads a checkpoint given its location.
 
         The checkpoint directory must contain one subdirectory for each fold. The
-        subdirectories must be named as follows: "fold_x", where x is the fold index.
+        subdirectories are named as follows: "fold_x", where x is the fold index.
         If there are no subdirectories that follow the mentioned pattern a
         `FileNotFoundError` is raised.
 
         The `Trainer` objects loaded from the checkpoints are added to the
-        `resumed_trainers` attribute.
+        `trainers` instance attribute.
 
         Arguments:
             checkpoint_dir (str): path to the directory where the checkpoints are saved.
@@ -337,14 +338,18 @@ class KFoldTrainer(object):
         # named
         self.trainers = []
         fold_idx = 1
-        while os.path.isdir(os.path.join(checkpoint_dir, "fold_" + str(fold_idx))):
+        fold_checkpoint = os.path.join(checkpoint_dir, "fold_" + str(fold_idx))
+        while os.path.isdir(fold_checkpoint):
             trainer = self._new_trainer(fold_idx)
-            trainer.resume(os.path.join(checkpoint_dir, "fold_" + str(fold_idx)))
+            trainer.load_checkpoint(fold_checkpoint)
             self.trainers.append(trainer)
-            fold_idx += 1
 
+            # Update fold index and expected checkpoint directory
+            fold_idx += 1
+            fold_checkpoint = os.path.join(checkpoint_dir, "fold_" + str(fold_idx))
+
+        # If "fold_1" doesn't exist then no valid checkpoints were found
         if fold_idx == 1:
-            # If "fold_1" doesn't exist then no valid checkpoints were found
             raise FileNotFoundError("fold checkpoints not found")
 
     def _new_trainer(self, fold):

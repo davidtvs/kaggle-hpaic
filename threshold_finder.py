@@ -113,7 +113,7 @@ if __name__ == "__main__":
         min_lr=config["min_lr"],
         device=device,
     )
-    ktrainer.resume(checkpoint_dir)
+    ktrainer.load_checkpoint(checkpoint_dir)
     kmodels = [trainer.model for trainer in ktrainer.trainers]
 
     # Search for the best thresholds for each fold
