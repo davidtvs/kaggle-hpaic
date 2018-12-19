@@ -77,7 +77,7 @@ if __name__ == "__main__":
     # Load decision thresholds from threshold json file
     json_path = os.path.join(checkpoint_dir, "threshold.json")
     threshold_dict = utils.load_json(json_path)
-    print("Loaded threshold dictionary from JSON:", threshold_dict.keys())
+    print("Loaded threshold dictionary from JSON:", list(threshold_dict.keys()))
 
     # Create the submission directory
     submission_dir = os.path.join(checkpoint_dir, "submission")

@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-import core
+from core import predict
 
 
 def sigmoid_threshold(tensor, threshold=0.5):
@@ -55,22 +55,26 @@ def find_single_threshold(
     """
     # Instead of generating predictions for every threshold, we'll get the logits and
     # targets from the predict function; then the thresholds are applied to the logits
-    logits, targets = core.predict(model, dataloader, device=device, ret_targets=True)
+    logits, targets = predict(model, dataloader, device=device, ret_targets=True)
 
     # thresholds is a vector that contains all the thresholds to be tested.
-    # best_thresholds will store the threshold that yields the highest metric.
     thresholds = np.linspace(min_threshold, max_threshold, num_thresholds)
-    best_threshold = None
     best_metric = None
+
+    # If several thresholds yield the highest metric, then they are stored in
+    # highscore_thresholds and the final threshold is the median of highscore_thresholds
+    highscore_thresholds = []
     for idx, th in enumerate(thresholds):
         outputs = sigmoid_threshold(logits, threshold=th)
         metric.reset()
         metric.add(outputs, targets)
         if idx == 0 or metric.value() > best_metric:
             best_metric = metric.value()
-            best_threshold = th
+            highscore_thresholds = [th]
+        elif metric.value() == best_metric:
+            highscore_thresholds.append(th)
 
-    return best_threshold
+    return np.median(highscore_thresholds)
 
 
 def find_class_threshold(
@@ -105,7 +109,7 @@ def find_class_threshold(
     """
     # Instead of generating predictions for every threshold, we'll get the logits and
     # targets from the predict function; then the thresholds are applied to the logits
-    logits, targets = core.predict(model, dataloader, device=device, ret_targets=True)
+    logits, targets = predict(model, dataloader, device=device, ret_targets=True)
     num_classes = targets.size(1)
 
     # thresholds is a vector that contains all the thresholds to be tested. Best
@@ -114,9 +118,14 @@ def find_class_threshold(
     best_thresholds = np.zeros((num_classes,))
     for class_idx in range(num_classes):
         # For each class all thresholds are tested. The threshold that yields the
-        # highest metric is stored in best_thresholds
+        # highest metric is stored in best_thresholds.
         best_metric = None
         class_thresholds = best_thresholds.copy()
+
+        # If several thresholds yield the highest metric, then they are stored in
+        # highscore_thresholds and the final threshold that is added to best_thresholds
+        # is the median of highscore_thresholds.
+        highscore_thresholds = []
         for idx, th in enumerate(thresholds):
             # th is the current threshold value for this class; class_thresholds is an
             # array that contains the threshold value for all classes
@@ -126,12 +135,16 @@ def find_class_threshold(
             metric.add(outputs, targets)
             if idx == 0 or metric.value() > best_metric:
                 best_metric = metric.value()
-                best_thresholds[class_idx] = th
+                highscore_thresholds = [th]
+            elif metric.value() == best_metric:
+                highscore_thresholds.append(th)
+
+        best_thresholds[class_idx] = np.median(highscore_thresholds)
 
     return best_thresholds.tolist()
 
 
-def find_threshold(models, dataloaders, metric, device=None, num_thresholds=1000):
+def multi_find_threshold(models, dataloaders, metric, device=None, num_thresholds=1000):
     """Searches for the best single and per-class decision thresholds for each model
 
     Wrapper function around ``find_single_threshold```and ``find_class_threshold``

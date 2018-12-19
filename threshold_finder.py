@@ -92,7 +92,9 @@ if __name__ == "__main__":
     print("Searching for the best decision thresholds")
     print("-" * 80)
     results = {}
-    th_search = utils.find_threshold(knets, val_loaders, metrics[0], device=device)
+    th_search = utils.multi_find_threshold(
+        knets, val_loaders, metrics[0], device=device
+    )
     for idx, (single_th, class_th) in enumerate(th_search):
         print()
         print("-" * 80)
@@ -120,9 +122,7 @@ if __name__ == "__main__":
         # will show the improvement over the default threshold
         print("Best overall threshold:\n", single_th)
         output_fn = partial(utils.sigmoid_threshold, threshold=single_th)
-        metrics = evaluate(
-            knets[idx], val_loaders[idx], metrics, output_fn=output_fn
-        )
+        metrics = evaluate(knets[idx], val_loaders[idx], metrics, output_fn=output_fn)
         results[key]["single_best"]["threshold"] = single_th
         results[key]["single_best"]["metrics"] = str(metrics)
         print(metrics)
@@ -131,9 +131,7 @@ if __name__ == "__main__":
         # Same as above but now with per-class thresholds
         print("Best thresholds per class:\n", class_th)
         output_fn = partial(utils.sigmoid_threshold, threshold=class_th)
-        metrics = evaluate(
-            knets[idx], val_loaders[idx], metrics, output_fn=output_fn
-        )
+        metrics = evaluate(knets[idx], val_loaders[idx], metrics, output_fn=output_fn)
         results[key]["class_best"]["threshold"] = class_th
         results[key]["class_best"]["metrics"] = str(metrics)
         print(metrics)
