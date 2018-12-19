@@ -1,11 +1,10 @@
 import os
+import errno
 from argparse import ArgumentParser
 from functools import partial
 import torch
 from torch.utils.data import DataLoader
-import numpy as np
-import pandas as pd
-from core import predict_yield_batch
+from core import predict
 import data
 import data.transforms as tf
 import model
@@ -20,8 +19,8 @@ def arguments():
         "--config",
         "-c",
         type=str,
-        default="config/example_submission.json",
-        help="Path to the JSON configuration file. Default: config/example_submission.json",
+        default="config/example_kfold.json",
+        help="Path to the JSON configuration file. Default: config/example_kfold.json",
     )
 
     return parser.parse_args()
@@ -30,7 +29,7 @@ def arguments():
 if __name__ == "__main__":
     # Get script arguments and JSON configuration
     args = arguments()
-    config = utils.load_config(args.config)
+    config = utils.load_json(args.config)
 
     device = torch.device(config["device"])
     print("Device:", device)
@@ -69,44 +68,56 @@ if __name__ == "__main__":
     )
     print(net)
 
-    # Load model weights from checkpoint
-    print("Loading model weights from {}...".format(config["model_weights"]))
-    checkpoint = torch.load(config["model_weights"], map_location=torch.device("cpu"))
-    net.load_state_dict(checkpoint["model"])
+    # Load the models from the specified checkpoint location
+    checkpoint_dir = os.path.join(config["checkpoint_dir"], config["name"])
+    print("Checkpoint directory:", checkpoint_dir)
+    knets = utils.load_kfold_models(net, checkpoint_dir)
+    print("No. of models loaded from checkpoint:", len(knets))
 
-    # Load decision thresholds from configuration file
-    output_fn = partial(utils.sigmoid_threshold, threshold=config["threshold"])
-    print("Decision threshold:", config["threshold"])
-    print("Output function:", output_fn)
+    # Load decision thresholds from threshold json file
+    json_path = os.path.join(checkpoint_dir, "threshold.json")
+    threshold_dict = utils.load_json(json_path)
+    print("Loaded threshold dictionary from JSON:", threshold_dict.keys())
 
+    # Create the submission directory
+    submission_dir = os.path.join(checkpoint_dir, "submission")
+    try:
+        os.makedirs(submission_dir)
+    except OSError as exc:
+        if exc.errno != errno.EEXIST:
+            raise
+        pass
+    print("Submissions will be saved in:", submission_dir)
+
+    # Ready to make predictions for each fold model
     print()
     print("-" * 80)
     print("Generating predictions")
     print("-" * 80)
-    predictions = []
-    predictor = predict_yield_batch(net, dataloader, output_fn=output_fn, device=device)
-    for bin_output_batch in predictor:
-        bin_output_batch = bin_output_batch.cpu().numpy().astype(bool)
+    for idx, net in enumerate(knets):
+        print()
+        print("-" * 80)
+        print("Fold {}".format(idx + 1))
+        print("-" * 80)
+        print()
 
-        # Iterate over each output in the batch and convert from binary to text
-        for idx, bin_output in enumerate(bin_output_batch):
-            # Need to convert from binary format to integer format
-            int_output = np.arange(num_classes)[bin_output]
+        # threshold_dict is a dictionary with two nested dictionaries. The first key
+        # specifies the fold, the second sepcifies the type of threshold, and the third
+        # contains the actual threshold in the "threshold" key and the validation
+        # metrics evaluated with that threshold in the "metrics" key.
+        fold_key = "fold_" + str(idx + 1)
+        for th_key in threshold_dict[fold_key].keys():
+            threshold = threshold_dict[fold_key][th_key]["threshold"]
+            output_fn = partial(utils.sigmoid_threshold, threshold=threshold)
+            print("Decision threshold:\n", threshold)
 
-            # Then, join the integer labels seperated by an empty space
-            str_output = [str(x) for x in int_output.tolist()]
-            text_output = " ".join(str_output)
-            predictions.append(text_output)
+            # Make predictions and store them in a dictionary for later use
+            predictions = predict(net, dataloader, output_fn=output_fn, device=device)
+            predictions = predictions.cpu().numpy()
 
-    # Construct the path where the submission will be saved:
-    # - same directory as the model weights;
-    # - filename as specified in submission_name setting in the config file.
-    csv_dir = os.path.dirname(config["model_weights"])
-    csv_filename = config["name"] + ".csv"
-    csv_path = os.path.join(csv_dir, csv_filename)
-
-    # Build the submission data frame and save it as a csv file
-    df = pd.DataFrame({"Id": dataset.sample_names, "Predicted": predictions})
-    df.to_csv(csv_path, index=False)
-    print()
-    print("Done! Saved submission in: {}".format(csv_path))
+            # Construct the filename of the submission file using the dictionary keys
+            csv_name = "{}_{}.csv".format(fold_key, th_key)
+            csv_path = os.path.join(submission_dir, csv_name)
+            utils.make_submission(predictions, dataset.sample_names, csv_path)
+            print("Saved submission in: {}".format(csv_path))
+            print()

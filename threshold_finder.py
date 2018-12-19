@@ -1,10 +1,8 @@
 import os
 from functools import partial
-from copy import deepcopy
-import json
 import torch
 from argparse import ArgumentParser
-import core
+from core import evaluate
 import data
 import data.transforms as tf
 import model
@@ -28,34 +26,10 @@ def arguments():
     return parser.parse_args()
 
 
-def load_checkpoint_models(net, checkpoint_dir):
-    # Load the model weights from the checkpoint. It's asssumed that the directory
-    # contains one subdirectory per fold named fold_x, where x is the fold number
-    knets = []
-    fold_idx = 1
-    fold_checkpoint = os.path.join(checkpoint_dir, "fold_" + str(fold_idx))
-    while os.path.isdir(fold_checkpoint):
-        # Each fold subdirectory contains the checkpoint in a file named "model.pth"
-        model_path = os.path.join(fold_checkpoint, "model.pth")
-        checkpoint = torch.load(model_path, map_location=torch.device("cpu"))
-        net.load_state_dict(checkpoint["model"])
-        knets.append(deepcopy(net))
-
-        # Update fold index and expected checkpoint directory
-        fold_idx += 1
-        fold_checkpoint = os.path.join(checkpoint_dir, "fold_" + str(fold_idx))
-
-    # If "fold_1" doesn't exist then no valid model checkpoints were found
-    if fold_idx == 1:
-        raise FileNotFoundError("fold checkpoint not found")
-
-    return knets
-
-
 if __name__ == "__main__":
     # Get script arguments and JSON configuration
     args = arguments()
-    config = utils.load_config(args.config)
+    config = utils.load_json(args.config)
 
     # Configs that are used multiple times
     device = torch.device(config["device"])
@@ -109,7 +83,7 @@ if __name__ == "__main__":
     # Load the models from the specified checkpoint location
     checkpoint_dir = os.path.join(config["checkpoint_dir"], config["name"])
     print("Checkpoint directory:", checkpoint_dir)
-    knets = load_checkpoint_models(net, checkpoint_dir)
+    knets = utils.load_kfold_models(net, checkpoint_dir)
     print("No. of models loaded from checkpoint:", len(knets))
 
     # Search for the best thresholds for each fold
@@ -134,7 +108,7 @@ if __name__ == "__main__":
         # Score the model using the standard decision threshold (0.5) used during
         # training
         print("Evaluating using a threshold of 0.5 for reference")
-        metrics = core.evaluate(
+        metrics = evaluate(
             knets[idx], val_loaders[idx], metrics, output_fn=utils.sigmoid_threshold
         )
         results[key]["default"]["threshold"] = 0.5
@@ -146,7 +120,7 @@ if __name__ == "__main__":
         # will show the improvement over the default threshold
         print("Best overall threshold:\n", single_th)
         output_fn = partial(utils.sigmoid_threshold, threshold=single_th)
-        metrics = core.evaluate(
+        metrics = evaluate(
             knets[idx], val_loaders[idx], metrics, output_fn=output_fn
         )
         results[key]["single_best"]["threshold"] = single_th
@@ -157,7 +131,7 @@ if __name__ == "__main__":
         # Same as above but now with per-class thresholds
         print("Best thresholds per class:\n", class_th)
         output_fn = partial(utils.sigmoid_threshold, threshold=class_th)
-        metrics = core.evaluate(
+        metrics = evaluate(
             knets[idx], val_loaders[idx], metrics, output_fn=output_fn
         )
         results[key]["class_best"]["threshold"] = class_th
@@ -167,6 +141,4 @@ if __name__ == "__main__":
 
     # Write the results dictionary to a json file inside checkpoint_dir
     json_path = os.path.join(checkpoint_dir, "threshold.json")
-
-    with open(json_path, "w") as f:
-        json.dump(results, f, indent=4, sort_keys=False)
+    utils.save_json(results, json_path)

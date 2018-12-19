@@ -28,7 +28,7 @@ def arguments():
 if __name__ == "__main__":
     # Get script arguments and JSON configuration
     args = arguments()
-    config = utils.load_config(args.config)
+    config = utils.load_json(args.config)
 
     # Configs that are used multiple times
     device = torch.device(config["device"])

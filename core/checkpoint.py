@@ -51,7 +51,6 @@ class Checkpoint(object):
 
         """
         if self.cmp_op(metric - self.threshold, self.best_metric):
-            # Make a copy of the metrics and checkpoint to isolate them
             self.best_metric = deepcopy(metric)
             torch.save(checkpoint, self.model_path)
             self._save_history(

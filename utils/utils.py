@@ -1,23 +1,26 @@
+import os
+from copy import deepcopy
 import json
 import torch
 import torch.nn as nn
 import numpy as np
+import pandas as pd
 from functools import partial
 import data
 import model
 import metric
 
 
-def save_config(filepath, config):
+def save_json(data, filepath, indent=4, sort_keys=False):
     with open(filepath, "w") as outfile:
-        json.dump(config, outfile, indent=4, sort_keys=True)
+        json.dump(data, outfile, indent=indent, sort_keys=sort_keys)
 
 
-def load_config(filepath):
+def load_json(filepath):
     with open(filepath, "r") as infile:
-        config = json.load(infile)
+        data = json.load(infile)
 
-    return config
+    return data
 
 
 def get_sampler(sampler_name):
@@ -90,3 +93,46 @@ def get_metric_list(dataset):
     metrics.append(metric.Accuracy())
 
     return metric.MetricList(metrics)
+
+
+def load_kfold_models(net, checkpoint_dir):
+    # Load the model weights from the checkpoint. It's asssumed that the directory
+    # contains one subdirectory per fold named fold_x, where x is the fold number
+    knets = []
+    fold_idx = 1
+    fold_checkpoint = os.path.join(checkpoint_dir, "fold_" + str(fold_idx))
+    while os.path.isdir(fold_checkpoint):
+        # Each fold subdirectory contains the checkpoint in a file named "model.pth"
+        model_path = os.path.join(fold_checkpoint, "model.pth")
+        checkpoint = torch.load(model_path, map_location=torch.device("cpu"))
+        net.load_state_dict(checkpoint["model"])
+        knets.append(deepcopy(net))
+
+        # Update fold index and expected checkpoint directory
+        fold_idx += 1
+        fold_checkpoint = os.path.join(checkpoint_dir, "fold_" + str(fold_idx))
+
+    # If "fold_1" doesn't exist then no valid model checkpoints were found
+    if fold_idx == 1:
+        raise FileNotFoundError("fold checkpoint not found")
+
+    return knets
+
+
+def make_submission(bin_predictions, sample_ids, path):
+    # Iterate over each output in the batch and convert from binary to text
+    predictions = []
+    for idx, bin_pred in enumerate(bin_predictions):
+        # Need to convert from binary format to integer format
+        # The number of classes is bin_pred.shape[-1]
+        bin_pred = bin_pred.astype(bool)
+        int_output = np.arange(bin_pred.shape[-1])[bin_pred]
+
+        # Then, join the integer labels seperated by an empty space
+        str_output = [str(x) for x in int_output.tolist()]
+        text_output = " ".join(str_output)
+        predictions.append(text_output)
+
+    # Build the submission data frame and save it as a csv file
+    df = pd.DataFrame({"Id": sample_ids, "Predicted": predictions})
+    df.to_csv(path, index=False)
