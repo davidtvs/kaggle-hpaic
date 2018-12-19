@@ -94,6 +94,7 @@ if __name__ == "__main__":
     print("-" * 80)
     print("Generating predictions")
     print("-" * 80)
+    predictions_dict = {}
     for idx, net in enumerate(knets):
         print()
         print("-" * 80)
@@ -111,9 +112,15 @@ if __name__ == "__main__":
             output_fn = partial(utils.sigmoid_threshold, threshold=threshold)
             print("Decision threshold:\n", threshold)
 
-            # Make predictions and store them in a dictionary for later use
+            # Make predictions using the threshold from the dictionary
             predictions = predict(net, dataloader, output_fn=output_fn, device=device)
+
+            # Convert tensor predictions to numpy and sum the predictions
             predictions = predictions.cpu().numpy()
+            if th_key in predictions_dict:
+                predictions_dict[th_key].append(predictions)
+            else:
+                predictions_dict[th_key] = [predictions]
 
             # Construct the filename of the submission file using the dictionary keys
             csv_name = "{}_{}.csv".format(fold_key, th_key)
@@ -121,3 +128,16 @@ if __name__ == "__main__":
             utils.make_submission(predictions, dataset.sample_names, csv_path)
             print("Saved submission in: {}".format(csv_path))
             print()
+
+    # For each type of threshold the loop below will make an ensemble of all folds and
+    # using majority voting and create a submission file
+    for key, pred_list in predictions_dict.items():
+        ensemble = utils.binary_ensembler(pred_list)
+
+        # Construct the filename of the submission file; using the dictionary key
+        # guarantees that the filenames are unique
+        csv_name = "ensemble_{}.csv".format(key)
+        csv_path = os.path.join(submission_dir, csv_name)
+        utils.make_submission(ensemble, dataset.sample_names, csv_path)
+        print("Saved ensemble submission in: {}".format(csv_path))
+        print()

@@ -136,3 +136,10 @@ def make_submission(bin_predictions, sample_ids, path):
     # Build the submission data frame and save it as a csv file
     df = pd.DataFrame({"Id": sample_ids, "Predicted": predictions})
     df.to_csv(path, index=False)
+
+
+def binary_ensembler(predictions, threshold=0.5, axis=0, dtype=int):
+    ensemble = np.array(predictions)
+    ensemble = np.mean(ensemble, axis=axis)
+
+    return (ensemble > threshold).astype(dtype)
