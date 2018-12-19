@@ -35,19 +35,22 @@ if __name__ == "__main__":
     device = torch.device(config["device"])
     print("Device:", device)
 
-    # Initialize the dataset
-    dataset = data.HPADatasetHDF5(
-        config["dataset_dir"], config["image_mode"], is_training=False
-    )
-    num_classes = len(dataset.label_to_name)
-    print("No. classes:", num_classes)
-    print("Training set size:", len(dataset))
-
     # Data transformations
     image_size = (config["img_h"], config["img_w"])
     transform = tf.Resize(image_size)
     print("Image size:", image_size)
-    print("Sample transform when training:", transform)
+    print("Sample transform:", transform)
+
+    # Initialize the dataset
+    dataset = data.HPADatasetHDF5(
+        config["dataset_dir"],
+        config["image_mode"],
+        is_training=False,
+        transform=transform,
+    )
+    num_classes = len(dataset.label_to_name)
+    print("No. classes:", num_classes)
+    print("Training set size:", len(dataset))
 
     # Initialize the dataloader
     dataloader = DataLoader(
