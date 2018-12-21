@@ -1,10 +1,10 @@
 import os
 from functools import partial
 import torch
+import torchvision.transforms as tf
 from argparse import ArgumentParser
 from core import evaluate
 import data
-import data.transforms as tf
 import model
 import utils
 
@@ -37,7 +37,14 @@ if __name__ == "__main__":
     print("Device:", device)
     print("Random state:", random_state)
 
-    # Initialize the dataset
+    # Data transformations for validation
+    image_size = (config["img_h"], config["img_w"])
+    tf_val = tf.Compose([tf.Resize(image_size), tf.ToTensor()])
+    print("Image size:", image_size)
+    print("Validation data transformation:", tf_val)
+
+    # Initialize the dataset; no need to set the transformation because it'll be
+    # overwritten when creating the dataloaders
     dataset = data.HPADatasetHDF5(
         config["dataset_dir"],
         config["image_mode"],
@@ -51,12 +58,6 @@ if __name__ == "__main__":
     # Intiliaze the sampling strategy
     train_sampler = utils.get_sampler(config["sampler"])
     print("Training sampler instance:", train_sampler)
-
-    # Data transformations
-    image_size = (config["img_h"], config["img_w"])
-    tf_val = tf.Resize(image_size)
-    print("Image size:", image_size)
-    print("Sample transform when validation:", tf_val)
 
     # Split dataset into k-sets and get one dataloader for each set. Only the validation
     # sets are needed

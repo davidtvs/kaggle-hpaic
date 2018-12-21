@@ -2,10 +2,11 @@ import os
 import h5py as h5
 import pandas as pd
 import numpy as np
+import torch
 from PIL import Image
 from torch.utils.data import Dataset
 from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
-from .transforms import ToTensor
+from torchvision.transforms import ToTensor
 
 
 class HPADataset(Dataset):
@@ -112,7 +113,8 @@ class HPADataset(Dataset):
         target = self.targets[index]
 
         # Apply the specified transformation to the image and target
-        image, target = self.transform(image, target)
+        image = self.transform(image)
+        target = torch.tensor(target, dtype=torch.float)
 
         return {
             "sample": image,

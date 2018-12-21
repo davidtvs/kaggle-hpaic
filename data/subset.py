@@ -1,6 +1,5 @@
 from torch.utils.data import Dataset
 from copy import deepcopy
-from .transforms import ToTensor
 
 
 class Subset(Dataset):
@@ -9,16 +8,17 @@ class Subset(Dataset):
     Modified from: https://pytorch.org/docs/stable/data.html?highlight=subset#torch.utils.data.Subset
 
     Arguments:
-        dataset (Dataset): The whole Dataset
-        indices (sequence): Indices in the whole set selected for subset
-        transform (callable, optional): transformation to apply to the data samples and
-            targets. Default: transforms.ToTensor.
+        dataset (Dataset): the dataset
+        indices (sequence): indices in the whole set selected for subset
+        transform (callable, optional): transformation to apply to the dataset. If None,
+            the dataset transformation is unchanged. Default: None.
     """
 
-    def __init__(self, dataset, indices, transform=ToTensor()):
+    def __init__(self, dataset, indices, transform=None):
         self.dataset = deepcopy(dataset)
         self.indices = indices
-        self.dataset.transform = transform
+        if transform is not None:
+            self.dataset.transform = transform
 
     def __getitem__(self, idx):
         return self.dataset[self.indices[idx]]

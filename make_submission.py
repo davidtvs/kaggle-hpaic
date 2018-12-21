@@ -4,9 +4,9 @@ from argparse import ArgumentParser
 from functools import partial
 import torch
 from torch.utils.data import DataLoader
+import torchvision.transforms as tf
 from core import predict
 import data
-import data.transforms as tf
 import model
 import utils
 
@@ -34,11 +34,11 @@ if __name__ == "__main__":
     device = torch.device(config["device"])
     print("Device:", device)
 
-    # Data transformations
+    # Data transformations for testing
     image_size = (config["img_h"], config["img_w"])
-    transform = tf.Resize(image_size)
+    transform = tf.Compose([tf.Resize(image_size), tf.ToTensor()])
     print("Image size:", image_size)
-    print("Sample transform:", transform)
+    print("Testing data transformation:", transform)
 
     # Initialize the dataset
     dataset = data.HPADatasetHDF5(
@@ -49,7 +49,7 @@ if __name__ == "__main__":
     )
     num_classes = len(dataset.label_to_name)
     print("No. classes:", num_classes)
-    print("Training set size:", len(dataset))
+    print("Test set size:", len(dataset))
 
     # Initialize the dataloader
     dataloader = DataLoader(

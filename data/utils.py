@@ -5,7 +5,7 @@ from iterstrat.ml_stratifiers import (
     MultilabelStratifiedKFold,
     MultilabelStratifiedShuffleSplit,
 )
-from .transforms import ToTensor
+from torchvision.transforms import ToTensor
 from .subset import Subset
 
 

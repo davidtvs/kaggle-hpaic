@@ -1,10 +1,11 @@
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
+import torchvision.transforms as tf
 from argparse import ArgumentParser
 from core import LRFinder
 from data import HPADatasetHDF5
-import data.transforms as tf
+import data.transforms as m_tf
 import model
 import utils
 
@@ -61,15 +62,28 @@ if __name__ == "__main__":
     print("Device:", device)
     print("Random state:", random_state)
 
-    # Data transformations
+    # Data transformations for training
     image_size = (config["img_h"], config["img_w"])
     if config["aug"]:
-        tf_train = tf.Augmentation(image_size)
+        # Input image augmentations
+        tf_train = tf.Compose(
+            [
+                tf.Resize(image_size),
+                tf.RandomHorizontalFlip(),
+                tf.RandomVerticalFlip(),
+                m_tf.Transpose(),
+                tf.RandomApply([tf.RandomRotation(20)]),
+                tf.RandomApply(
+                    [tf.ColorJitter(brightness=0.25, contrast=0.25, saturation=0.25)]
+                ),
+                tf.ToTensor(),
+            ]
+        )
     else:
-        tf_train = tf.Resize(image_size)
+        tf_train = tf.Compose([tf.Resize(image_size), tf.ToTensor()])
 
     print("Image size:", image_size)
-    print("Sample transform when training:", tf_train)
+    print("Training data transformation:", tf_train)
 
     # Initialize the dataset
     dataset = HPADatasetHDF5(
