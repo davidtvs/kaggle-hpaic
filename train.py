@@ -75,11 +75,30 @@ if __name__ == "__main__":
     print("Training set size:", len(dataset))
 
     # Intiliaze the sampling strategy
-    train_sampler = utils.get_sampler(config["sampler"])
+    train_sampler = utils.get_partial_sampler(config["sampler"])
     print("Training sampler instance:", train_sampler)
 
     # Compute class weights
-    weights = utils.get_weights(config["weighing"], dataset.targets, device)
+    if train_sampler is None:
+        sample_weights = None
+    else:
+        # Get the sample weight from the sampler; need to unsqueeze the last dimension
+        # so numpy can broadcast the array when computing the weights
+        sample_weights = train_sampler(dataset.targets).weights.unsqueeze(-1).numpy()
+
+    weights = utils.get_weights(
+        config["weighing"],
+        dataset.targets,
+        sample_weights,
+        config["min_clip"],
+        config["max_clip"],
+        config["damping_r"],
+        device,
+    )
+    print("Frequency balancing mode:", config["weighing"])
+    print("Minimum clip:", config["min_clip"])
+    print("Maximum clip:", config["max_clip"])
+    print("Damping ratio:", config["damping_r"])
     print("Class weights:", weights)
 
     # Initialize the model

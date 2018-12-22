@@ -104,7 +104,24 @@ if __name__ == "__main__":
     print("Training sampler instance:", train_sampler)
 
     # Compute class weights
-    weights = utils.get_weights(config["weighing"], dataset.targets, device)
+    if train_sampler is None:
+        sample_weights = None
+    else:
+        sample_weights = train_sampler(dataset.targets)
+
+    weights = utils.get_weights(
+        config["weighing"],
+        dataset.targets,
+        sample_weights,
+        config["min_clip"],
+        config["max_clip"],
+        config["damping_r"],
+        device,
+    )
+    print("Frequency balancing mode:", config["weighing"])
+    print("Minimum clip:", config["min_clip"])
+    print("Maximum clip:", config["max_clip"])
+    print("Damping ratio:", config["damping_r"])
     print("Class weights:", weights)
 
     # Initialize the model

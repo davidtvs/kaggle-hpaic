@@ -23,14 +23,14 @@ def load_json(filepath):
     return data
 
 
-def get_sampler(sampler_name):
+def get_partial_sampler(sampler_name):
     """Creates the sampling partial function to apply to the training labels"""
     if sampler_name:
         sampler_name = sampler_name.lower()
         if sampler_name == "mean":
-            sampler = partial(data.utils.freq_weighted_sampler, mode="mean")
+            sampler = partial(data.utils.frequency_weighted_sampler, mode="mean")
         elif sampler_name == "median":
-            sampler = partial(data.utils.freq_weighted_sampler, mode="median")
+            sampler = partial(data.utils.frequency_weighted_sampler, mode="median")
         else:
             raise ValueError("invalid sampling technique: {}".format(sampler_name))
     else:
@@ -39,20 +39,18 @@ def get_sampler(sampler_name):
     return sampler
 
 
-def get_weights(weighing_name, labels, device):
-    """Computes class weights given the name of the weighing technique."""
-    if weighing_name:
-        weighing_name = weighing_name.lower()
-        if weighing_name == "fb":
-            weights = data.utils.frequency_balancing(labels)
-        elif weighing_name == "median_fb":
-            weights = data.utils.frequency_balancing(labels, scaling="median")
-        elif weighing_name == "majority_fb":
-            weights = data.utils.frequency_balancing(labels, scaling="majority")
-        elif weighing_name == "minority_fb":
-            weights = data.utils.frequency_balancing(labels, scaling="minority")
-        else:
-            raise ValueError("invalid weighing: {}".format(weighing_name))
+def get_weights(scaling, labels, sample_weights, min_clip, max_clip, damping_r, device):
+    """Computes class weights given the type scaling for frequency balancing."""
+    if scaling:
+        scaling = scaling.lower()
+        weights = data.utils.frequency_balancing(
+            labels,
+            scaling=scaling,
+            sample_weights=sample_weights,
+            min_clip=min_clip,
+            max_clip=max_clip,
+            damping_r=damping_r,
+        )
     else:
         weights = np.ones((labels.shape[-1],))
 
