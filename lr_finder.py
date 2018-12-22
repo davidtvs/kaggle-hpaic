@@ -98,7 +98,7 @@ if __name__ == "__main__":
     print("Training set size:", len(dataset))
 
     # Intiliaze the sampling strategy
-    train_sampler = utils.get_sampler(config["sampler"])
+    train_sampler = utils.get_partial_sampler(config["sampler"])
     if train_sampler is not None:
         train_sampler = train_sampler(dataset.targets)
     print("Training sampler instance:", train_sampler)

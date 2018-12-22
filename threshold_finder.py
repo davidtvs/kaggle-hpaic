@@ -55,10 +55,6 @@ if __name__ == "__main__":
     print("No. classes:", num_classes)
     print("Training set size:", len(dataset))
 
-    # Intiliaze the sampling strategy
-    train_sampler = utils.get_sampler(config["sampler"])
-    print("Training sampler instance:", train_sampler)
-
     # Split dataset into k-sets and get one dataloader for each set. Only the validation
     # sets are needed
     _, val_loaders = data.utils.kfold_loaders(
@@ -66,7 +62,6 @@ if __name__ == "__main__":
         config["n_splits"],
         config["batch_size"],
         tf_val=tf_val,
-        train_sampler=train_sampler,
         num_workers=config["workers"],
         random_state=random_state,
     )
