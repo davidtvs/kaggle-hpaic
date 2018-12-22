@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader
 import torchvision.transforms as tf
 from core import predict
 import data
+from data.transforms import get_tta
 import model
 import utils
 
@@ -21,6 +22,72 @@ def arguments():
         type=str,
         default="config/example_kfold.json",
         help="Path to the JSON configuration file. Default: config/example_kfold.json",
+    )
+    parser.add_argument(
+        "--no-tta",
+        dest="tta",
+        action="store_false",
+        help="Test time augmentation is not performed",
+    )
+    parser.add_argument(
+        "--num-aug",
+        type=int,
+        default="16",
+        help="Number of test time augmentations to apply. Default: 16",
+    )
+    parser.add_argument(
+        "--brightness",
+        type=float,
+        default="0.15",
+        help=(
+            "How much to jitter brightness. Set to 0 to disable this transformation. "
+            "Default: 0.15"
+        ),
+    )
+    parser.add_argument(
+        "--contrast",
+        type=float,
+        default="0.15",
+        help=(
+            "How much to jitter contrast. Set to 0 to disable this transformation. "
+            "Default: 0.15"
+        ),
+    )
+    parser.add_argument(
+        "--hue",
+        type=float,
+        default="0",
+        help=(
+            "How much to jitter hue. Set to 0 to disable this transformation. "
+            "Default: 0"
+        ),
+    )
+    parser.add_argument(
+        "--saturation",
+        type=float,
+        default="0.15",
+        help=(
+            "How much to jitter saturation. Set to 0 to disable this transformation. "
+            "Default: 0.15"
+        ),
+    )
+    parser.add_argument(
+        "--degrees",
+        type=float,
+        default="20",
+        help=(
+            "Rotation angle in degrees. Set to 0 to disable this transformation. "
+            "Default: 20"
+        ),
+    )
+    parser.add_argument(
+        "--tta-weight",
+        type=float,
+        default="0.7",
+        help=(
+            "The weight of the average TTA predictions. The weight of the regular "
+            "predictions is set to (1 - value) predictions. Default: 0.7"
+        ),
     )
 
     return parser.parse_args()
@@ -58,6 +125,25 @@ if __name__ == "__main__":
         shuffle=False,
         num_workers=config["workers"],
     )
+
+    # Handle TTA
+    print("Test time augmentations:", args.tta)
+    if args.tta:
+        tta_tf = get_tta(
+            image_size,
+            n_aug=args.num_aug,
+            brightness=args.brightness,
+            contrast=args.contrast,
+            hue=args.hue,
+            saturation=args.saturation,
+            degrees=args.degrees,
+        )
+        tta_loaders = data.utils.tta_loaders(
+            dataset, config["batch_size"], tta_tf, num_workers=config["workers"]
+        )
+
+        print("TTA transformations:\n", tta_tf)
+        print("Number of TTA dataloaders:", len(tta_loaders))
 
     # Get list of metrics
     metrics = utils.get_metric_list(dataset)
@@ -114,9 +200,23 @@ if __name__ == "__main__":
 
             # Make predictions using the threshold from the dictionary
             predictions = predict(net, dataloader, output_fn=output_fn, device=device)
-
-            # Convert tensor predictions to numpy and sum the predictions
             predictions = predictions.cpu().numpy()
+
+            if args.tta:
+                # Make predictions for TTA
+                tta_predictions = []
+                for idx, loader in enumerate(tta_loaders):
+                    print("TTA {}/{}".format(idx + 1, len(tta_loaders)))
+                    tta_pred = predict(net, loader, output_fn=output_fn, device=device)
+                    tta_pred = tta_pred.cpu().numpy()
+                    tta_predictions.append(tta_pred)
+
+                # Ensemble regular predictions with TTA predictions
+                predictions = utils.tta_ensembler(
+                    predictions, tta_predictions, tta_weight=args.tta_weight
+                )
+
+            # Store the predictions for this threshold in the dictionary
             if th_key in predictions_dict:
                 predictions_dict[th_key].append(predictions)
             else:

@@ -136,8 +136,16 @@ def make_submission(bin_predictions, sample_ids, path):
     df.to_csv(path, index=False)
 
 
-def binary_ensembler(predictions, threshold=0.5, axis=0, dtype=int):
-    ensemble = np.array(predictions)
-    ensemble = np.mean(ensemble, axis=axis)
+def tta_ensembler(predictions, tta_predictions, tta_weight=0.6, threshold=0.5):
+    tta_predictions = np.array(tta_predictions)
+    tta_predictions = np.mean(tta_predictions, axis=0)
+    weighted_pred = (1 - tta_weight) * predictions + tta_weight * tta_predictions
 
-    return (ensemble > threshold).astype(dtype)
+    return (weighted_pred > threshold).astype(int)
+
+
+def ensembler(predictions, threshold=0.5):
+    ensemble = np.array(predictions)
+    ensemble = np.mean(ensemble, axis=0)
+
+    return (ensemble > threshold).astype(int)

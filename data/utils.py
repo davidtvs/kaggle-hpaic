@@ -1,3 +1,4 @@
+from copy import deepcopy
 import numpy as np
 import torch
 from torch.utils.data import DataLoader, WeightedRandomSampler
@@ -178,6 +179,17 @@ def train_val_loaders(
     )
 
     return train_loader, val_loader
+
+
+def tta_loaders(dataset, batch_size, tta_transforms, num_workers=4):
+    loaders = []
+    for tta in tta_transforms:
+        tta_set = deepcopy(dataset)
+        tta_set.transform = tta
+        loader = DataLoader(tta_set, batch_size=batch_size, num_workers=num_workers)
+        loaders.append(loader)
+
+    return loaders
 
 
 def frequency_balancing(
