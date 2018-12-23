@@ -1,9 +1,50 @@
 import os
 import h5py as h5
+from argparse import ArgumentParser
 import pandas as pd
 import numpy as np
 from PIL import Image
 from tqdm import tqdm
+
+
+def arguments():
+    parser = ArgumentParser(description="Converts the HPA Kaggle dataset to HDF5")
+    parser.add_argument(
+        "--source-dir",
+        "-s",
+        type=str,
+        default="../../dataset",
+        help="Path to the root directory of the Kaggle dataset",
+    )
+    parser.add_argument(
+        "--dest-dir",
+        "-d",
+        type=str,
+        default="../../dataset",
+        help="Path to the root directory where the HDF5 files will be saved",
+    )
+    parser.add_argument(
+        "--batch-size",
+        "-b",
+        type=int,
+        default=200,
+        help="Number of images read at a time",
+    )
+    parser.add_argument(
+        "--chunk-size",
+        "-c",
+        type=int,
+        default=200,
+        help="Number of images in each chunk of the HDF5 file",
+    )
+    parser.add_argument(
+        "--num-images",
+        type=int,
+        default=0,
+        help="Testing purposes. Total number of images to store in the HDF5 files.",
+    )
+
+    return parser.parse_args()
 
 
 def get_image(image_dir, name, filters=("red", "green", "blue", "yellow")):
@@ -77,14 +118,18 @@ def image_batches(
 
 if __name__ == "__main__":
     # Parameters
-    root_dir = "../../dataset"
-    hdf5_dir = "../../dataset"
+    args = arguments()
+    root_dir = args.source_dir
+    hdf5_dir = args.dest_dir
+    batch_size = args.batch_size
+    num_chunk_items = args.chunk_size
     filters = ("red", "green", "blue", "yellow")
-    batch_size = 200
-    num_chunk_items = 200
 
     # Just for testing; set to None to store all images in hdf5
-    num_images = None
+    if args.num_images == 0:
+        num_images = None
+    else:
+        num_images = args.num_images
 
     # Paths
     train_dir = os.path.join(root_dir, "train")
