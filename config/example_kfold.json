@@ -27,5 +27,6 @@
     "lr_factor": 0.1,
     "min_lr": 1e-6,
     "stop_patience": 10,
-    "resume": null
+    "load_checkpoint": null,
+    "weights_only": false
 }

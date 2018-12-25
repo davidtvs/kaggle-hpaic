@@ -155,8 +155,11 @@ if __name__ == "__main__":
         min_lr=config["min_lr"],
         device=device,
     )
-    if config["resume"] and os.path.isdir(config["resume"]):
-        ktrainer.load_checkpoint(config["resume"])
+    load_checkpoint = config["load_checkpoint"]
+    if load_checkpoint and os.path.isdir(load_checkpoint):
+        print("Loading from checkpoint:", load_checkpoint)
+        print("Loading only weights from checkpoint?", config["weights_only"])
+        ktrainer.load_checkpoint(load_checkpoint, config["weights_only"])
 
     scores = ktrainer.fit(train_loaders, val_loaders, output_fn=utils.sigmoid_threshold)
 

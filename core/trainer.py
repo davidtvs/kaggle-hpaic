@@ -203,35 +203,45 @@ class Trainer:
 
         return checkpoint
 
-    def load_state_dict(self, state_dict):
-        # Load the states from the checkpoint
-        self.start_epoch = state_dict["epoch"] + 1
+    def load_state_dict(self, state_dict, weights_only=False):
+        # Always load the model weights
         self.model.load_state_dict(state_dict["model"])
-        self.optimizer.load_state_dict(state_dict["optimizer"])
-        self.lr_scheduler.load_state_dict(state_dict["lr_scheduler"])
-        self.early_stop.load_state_dict(state_dict["early_stop"])
-        self.loss_history = state_dict["loss"]
-        self.metric_history = state_dict["metric"]
 
-        # Because trainer_checkpoint saved the model its up-to-date state cannot be
-        # included in the checkpoint. Thus, we have to manually restore its state.
-        self.trainer_checkpoint.best_metric = self.early_stop.best_metric
+        if not weights_only:
+            # Load the states from the checkpoint
+            self.start_epoch = state_dict["epoch"] + 1
+            self.optimizer.load_state_dict(state_dict["optimizer"])
+            self.lr_scheduler.load_state_dict(state_dict["lr_scheduler"])
+            self.early_stop.load_state_dict(state_dict["early_stop"])
+            self.loss_history = state_dict["loss"]
+            self.metric_history = state_dict["metric"]
 
-        # If the optimizer is loaded from a checkpoint the states are loaded to the CPU.
-        # During training, if the device is the GPU the optimizer will raise an error
-        # because it'll expect a CPU tensor. To solve this problem the optimizer state
-        # is manually moved to the correct device.
-        # See https://github.com/pytorch/pytorch/issues/2830 for more details.
-        for state in self.optimizer.state.values():
-            for k, v in state.items():
-                if torch.is_tensor(v):
-                    state[k] = v.to(self.device)
+            # Because trainer_checkpoint saved the model its up-to-date state cannot be
+            # included in the checkpoint. Thus, we have to manually restore its state.
+            self.trainer_checkpoint.best_metric = self.early_stop.best_metric
 
-    def load_checkpoint(self, checkpoint_dir, filename="model.pth"):
+            # If the optimizer is loaded from a checkpoint the states are loaded to the
+            # CPU automatically. During training, if the device in use is the GPU the
+            # optimizer will raise an error because it'll expect a GPU tensor.
+            # Thus, the optimizer state must be manually moved to the correct device.
+            # See https://github.com/pytorch/pytorch/issues/2830 for more details.
+            for state in self.optimizer.state.values():
+                for k, v in state.items():
+                    if torch.is_tensor(v):
+                        state[k] = v.to(self.device)
+
+    def load_checkpoint(self, checkpoint_dir, filename="model.pth", weights_only=False):
+        # Load the state from the checkpoint file
         checkpoint_path = os.path.join(checkpoint_dir, filename)
         state_dict = torch.load(checkpoint_path, map_location=torch.device("cpu"))
+        self.load_state_dict(state_dict, weights_only=weights_only)
 
-        self.load_state_dict(state_dict)
+        # If the location of the checkpoint we just loaded is different from the
+        # location where new checkpoints will be saved, duplicate the checkpoint file in
+        # the new location. (avoids possible issues where the best checkpoint can't be
+        # returned because the score never improved and a new checkpoint was never made)
+        if checkpoint_path != self.trainer_checkpoint.model_path:
+            torch.save(state_dict, self.trainer_checkpoint.model_path)
 
 
 class KFoldTrainer(object):
@@ -250,6 +260,7 @@ class KFoldTrainer(object):
         self.args = args
         self.kwargs = kwargs
         self.trainers = []
+        self.resume = False
 
     def fit(self, train_loaders, val_loaders, output_fn=None, ret_checkpoints=False):
         """Fit the model given training and validation data.
@@ -288,12 +299,12 @@ class KFoldTrainer(object):
             print("-" * 80)
             print()
 
-            if k < len(self.trainers) - 1:
+            if self.resume and k < len(self.trainers) - 1:
                 # Found a trainer that is already fully trained; we know that
                 # because this is not the last trainer from the checkpoint
                 print("Fold already trained!")
                 continue
-            elif k == len(self.trainers) - 1:
+            elif self.resume and k == len(self.trainers) - 1:
                 # Last trainer from the checkpoint; the last k-fold training process was
                 # interrupted during the training of this fold. Load the trainer and
                 # resume training
@@ -319,7 +330,7 @@ class KFoldTrainer(object):
 
         return out
 
-    def load_checkpoint(self, checkpoint_dir):
+    def load_checkpoint(self, checkpoint_dir, weights_only=False):
         """Loads a checkpoint given its location.
 
         The checkpoint directory must contain one subdirectory for each fold. The
@@ -332,6 +343,9 @@ class KFoldTrainer(object):
 
         Arguments:
             checkpoint_dir (str): path to the directory where the checkpoints are saved.
+            weights_only (bool, optional): if True only the model weights are loaded
+                from the checkpoint; otherwise, the whole checkpoint is loaded and
+                calling ``fit`` will resume training. Default: False.
 
         """
         # Load the checkpoint for each fold, provided that the subdirectory is properly
@@ -341,7 +355,7 @@ class KFoldTrainer(object):
         fold_checkpoint = os.path.join(checkpoint_dir, "fold_" + str(fold_idx))
         while os.path.isdir(fold_checkpoint):
             trainer = self._new_trainer(fold_idx)
-            trainer.load_checkpoint(fold_checkpoint)
+            trainer.load_checkpoint(fold_checkpoint, weights_only=weights_only)
             self.trainers.append(trainer)
 
             # Update fold index and expected checkpoint directory
@@ -351,6 +365,8 @@ class KFoldTrainer(object):
         # If "fold_1" doesn't exist then no valid checkpoints were found
         if fold_idx == 1:
             raise FileNotFoundError("fold checkpoints not found")
+
+        self.resume = not weights_only
 
     def _new_trainer(self, fold):
         """Creates a new `Trainer` object for a given fold.
