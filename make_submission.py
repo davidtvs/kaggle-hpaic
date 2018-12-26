@@ -232,7 +232,7 @@ if __name__ == "__main__":
     # For each type of threshold the loop below will make an ensemble of all folds and
     # using majority voting and create a submission file
     for key, pred_list in predictions_dict.items():
-        ensemble = utils.binary_ensembler(pred_list)
+        ensemble = utils.ensembler(pred_list)
 
         # Construct the filename of the submission file; using the dictionary key
         # guarantees that the filenames are unique
