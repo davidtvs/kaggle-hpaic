@@ -260,11 +260,7 @@ def frequency_balancing(
     return w
 
 
-def frequency_weighted_sampler(labels, mode="median"):
-    mode = mode.lower()
-    if mode not in ("median", "mean"):
-        raise ValueError("invalid mode: {}".format(mode))
-
+def frequency_weighted_sampler(labels, mode="mean"):
     # Get the class frequencies and multiply them by the targets (multi-label binary
     # matrix). The result is a matrix where at each positive label the corresponding
     # weight is found
@@ -274,10 +270,20 @@ def frequency_weighted_sampler(labels, mode="median"):
     # To apply the specified operation we want to ignore the 0s; the simplest way of
     # achieving this goal is to set all 0s to NaN and use the operations that ignore NaN
     samples_weight[samples_weight == 0] = np.nan
+    mode = mode.lower()
     if mode == "median":
         samples_weight = np.nanmedian(samples_weight, axis=1)
-    else:
+    elif mode == "mean":
         samples_weight = np.nanmean(samples_weight, axis=1)
+    elif mode == "max":
+        samples_weight = np.nanmax(samples_weight, axis=1)
+    elif mode == "meanmax":
+        sw_mean = np.nanmean(samples_weight, axis=1, keepdims=True)
+        sw_max = np.nanmax(samples_weight, axis=1, keepdims=True)
+        sw_meanmax = np.hstack((sw_mean, sw_max))
+        samples_weight = np.mean(sw_meanmax, axis=1)
+    else:
+        raise ValueError("invalid mode: {}".format(mode))
 
     # Convert to torch tensor
     samples_weight = torch.from_numpy(samples_weight)
