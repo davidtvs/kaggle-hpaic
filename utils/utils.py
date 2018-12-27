@@ -149,3 +149,28 @@ def ensembler(predictions, threshold=0.5):
     ensemble = np.mean(ensemble, axis=0)
 
     return (ensemble > threshold).astype(int)
+
+
+def fill_empty_predictions(predictions, class_idx):
+    """Change empty predictions to output the specified class
+
+    Arguments:
+        predictions (numpy.ndarray): the model predictions in binary format.
+            Shape: (N, K), where N is the number of samples and K is the number of
+            classes.
+        class_idx (int): the class to output when the model makes no
+            prediction. Expects an integer in the range [0, K-1].
+
+    Returns:
+        numpy.ndarray: the predictions
+    """
+    if not 0 <= class_idx < predictions.shape[1]:
+        raise ValueError(
+            "class_idx is not in the expected range: [{}, {}], got {}".format(
+                0, predictions.shape[1], class_idx
+            )
+        )
+    empty_mask = np.sum(predictions, axis=1) == 0
+    predictions[empty_mask, class_idx] = 1
+
+    return predictions

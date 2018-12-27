@@ -24,6 +24,15 @@ def arguments():
         help="Path to the JSON configuration file. Default: config/example_kfold.json",
     )
     parser.add_argument(
+        "--fill-empty",
+        type=int,
+        help=(
+            "Samples where the model makes no prediction are changed to output the "
+            "class specified in this argument. If not set, empty predictions are "
+            "unchanged."
+        ),
+    )
+    parser.add_argument(
         "--no-tta",
         dest="tta",
         action="store_false",
@@ -97,6 +106,8 @@ if __name__ == "__main__":
     # Get script arguments and JSON configuration
     args = arguments()
     config = utils.load_json(args.config)
+    print("Config file:", args.config)
+    print("Fill empty:", args.fill_empty)
 
     device = torch.device(config["device"])
     print("Device:", device)
@@ -195,8 +206,8 @@ if __name__ == "__main__":
         fold_key = "fold_" + str(idx + 1)
         for th_key in threshold_dict[fold_key].keys():
             threshold = threshold_dict[fold_key][th_key]["threshold"]
-            output_fn = partial(utils.sigmoid_threshold, threshold=threshold)
             print("Decision threshold:\n", threshold)
+            output_fn = partial(utils.sigmoid_threshold, threshold=threshold)
 
             # Make predictions using the threshold from the dictionary
             predictions = predict(net, dataloader, output_fn=output_fn, device=device)
@@ -218,9 +229,16 @@ if __name__ == "__main__":
 
             # Store the predictions for this threshold in the dictionary
             if th_key in predictions_dict:
-                predictions_dict[th_key].append(predictions)
+                predictions_dict[th_key].append(predictions.copy())
             else:
-                predictions_dict[th_key] = [predictions]
+                predictions_dict[th_key] = [predictions.copy()]
+
+            # Change empty predictions to class 0 (a wrong prediction has the same cost
+            # as not predicting anything, so might aswell predict the majority class)
+            # This is done after storing the predictions so that there is no bias when
+            # ensembling
+            if args.fill_empty is not None:
+                predictions = utils.fill_empty_predictions(predictions, args.fill_empty)
 
             # Construct the filename of the submission file using the dictionary keys
             csv_name = "{}_{}.csv".format(fold_key, th_key)
@@ -230,9 +248,11 @@ if __name__ == "__main__":
             print()
 
     # For each type of threshold the loop below will make an ensemble of all folds and
-    # using majority voting and create a submission file
+    # and create a submission file
     for key, pred_list in predictions_dict.items():
         ensemble = utils.ensembler(pred_list)
+        if args.fill_empty is not None:
+            ensemble = utils.fill_empty_predictions(ensemble, args.fill_empty)
 
         # Construct the filename of the submission file; using the dictionary key
         # guarantees that the filenames are unique
