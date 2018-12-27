@@ -72,8 +72,8 @@ class Trainer:
         """Fit the model given training and validation data.
 
         Arguments:
-            train_loaders (array-like): k training dataloaders.
-            val_loaders (array-like): k validation dataloaders.
+            train_dataloader (array-like): training set data loader.
+            val_dataloader (array-like): validation set data loader.
             output_fn (function, optional): a function to convert the model output into
                 predictions. When set to `None`, the predictions are the same as the
                 model output. Default: None.
