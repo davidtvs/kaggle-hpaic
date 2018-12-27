@@ -23,16 +23,11 @@ def load_json(filepath):
     return data
 
 
-def get_partial_sampler(sampler_name):
+def get_partial_sampler(sampler_mode):
     """Creates the sampling partial function to apply to the training labels"""
-    if sampler_name:
-        sampler_name = sampler_name.lower()
-        if sampler_name == "mean":
-            sampler = partial(data.utils.frequency_weighted_sampler, mode="mean")
-        elif sampler_name == "median":
-            sampler = partial(data.utils.frequency_weighted_sampler, mode="median")
-        else:
-            raise ValueError("invalid sampling technique: {}".format(sampler_name))
+    if sampler_mode is not None:
+        sampler_mode = sampler_mode.lower()
+        sampler = partial(data.utils.frequency_weighted_sampler, mode=sampler_mode)
     else:
         sampler = None
 

@@ -276,4 +276,3 @@ if __name__ == "__main__":
         compression_filter,
         max_limit=num_images,
     )
-
