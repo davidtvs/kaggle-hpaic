@@ -41,25 +41,27 @@ def arguments():
     parser.add_argument(
         "--num-aug",
         type=int,
-        default="16",
-        help="Number of test time augmentations to apply. Default: 16",
+        help=(
+            "Number of test time augmentations to apply. If not set, all possible TTA "
+            "combinations are used"
+        ),
     )
     parser.add_argument(
         "--brightness",
         type=float,
-        default="0.15",
+        default="0.10",
         help=(
             "How much to jitter brightness. Set to 0 to disable this transformation. "
-            "Default: 0.15"
+            "Default: 0.10"
         ),
     )
     parser.add_argument(
         "--contrast",
         type=float,
-        default="0.15",
+        default="0",
         help=(
             "How much to jitter contrast. Set to 0 to disable this transformation. "
-            "Default: 0.15"
+            "Default: 0"
         ),
     )
     parser.add_argument(
@@ -74,28 +76,28 @@ def arguments():
     parser.add_argument(
         "--saturation",
         type=float,
-        default="0.15",
+        default="0",
         help=(
             "How much to jitter saturation. Set to 0 to disable this transformation. "
-            "Default: 0.15"
+            "Default: 0"
         ),
     )
     parser.add_argument(
         "--degrees",
         type=float,
-        default="20",
+        default="0",
         help=(
             "Rotation angle in degrees. Set to 0 to disable this transformation. "
-            "Default: 20"
+            "Default: 0"
         ),
     )
     parser.add_argument(
         "--tta-weight",
         type=float,
-        default="0.7",
+        default="0.6",
         help=(
             "The weight of the average TTA predictions. The weight of the regular "
-            "predictions is set to (1 - value) predictions. Default: 0.7"
+            "predictions is set to (1 - value) predictions. Default: 0.6"
         ),
     )
 
