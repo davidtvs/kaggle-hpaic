@@ -30,6 +30,24 @@ def arguments():
         help="Path to the root directory where the HDF5 files will be saved",
     )
     parser.add_argument(
+        "--selection",
+        type=int,
+        nargs="+",
+        help=(
+            "The classes to select from the Kaggle training dataset. By default, it "
+            "will select all classes"
+        ),
+    )
+    parser.add_argument(
+        "--selection-HPAv18",
+        type=int,
+        nargs="+",
+        help=(
+            "The classes to select from the HPAv18 training dataset. By default, it "
+            "will select all classes"
+        ),
+    )
+    parser.add_argument(
         "--batch-size",
         "-b",
         type=int,
@@ -68,7 +86,6 @@ def arguments():
     parser.add_argument(
         "--num-images",
         type=int,
-        default=0,
         help="Testing purposes. Total number of images to store in the HDF5 files.",
     )
 
@@ -144,28 +161,49 @@ def image_batches(
             yield names, images
 
 
-def hdf5_writer(
-    zip_path,
-    hdf5_path,
-    batch_size,
-    chunk_size,
-    compression=None,
-    max_limit=None,
-    append=False,
-):
+def get_train_dataframe(csv, class_selection=None, max_limit=None):
+    def class_filter(target_str):
+        int_target = np.array(target_str.split(" "), dtype=int)
+        intersection = set(int_target) & set(class_selection)
+
+        return len(intersection) > 0
+
+    df = pd.read_csv(csv)
+    if class_selection is not None:
+        mask = df["Target"].apply(class_filter)
+        df = df[mask]
+
+    return df[:max_limit]
+
+
+def get_test_filenames(zip_path, max_limit=None):
     # Open the zip file and get the list of images to store in the HDF5 file
-    archive = zipfile.ZipFile(zip_path, "r")
-    zip_names = archive.namelist()
+    with zipfile.ZipFile(zip_path, "r") as z:
+        zip_names = z.namelist()
 
     # image_batches expects the image names to not include the filters. After removing
     # the filters also remove the duplicated names and sort the list
     zip_names = [name.rsplit("_", 1)[0] for name in zip_names]
     zip_names = list(sorted(set(zip_names)))
-    zip_names = zip_names[:max_limit]
 
-    with tqdm(zip_names) as pbar:
+    return zip_names[:max_limit]
+
+
+def hdf5_writer(
+    zip_path,
+    filenames,
+    hdf5_path,
+    batch_size,
+    chunk_size,
+    compression=None,
+    append=False,
+):
+    # Open the zip file and get the list of images to store in the HDF5 file
+    archive = zipfile.ZipFile(zip_path, "r")
+
+    with tqdm(filenames) as pbar:
         # Iterate over the batches and add them to the hdf5 file
-        batch_loader = image_batches(archive, zip_names, batch_size=batch_size)
+        batch_loader = image_batches(archive, filenames, batch_size=batch_size)
         for idx, (names, images) in enumerate(batch_loader):
             if idx == 0 and not append:
                 # On the first iteration create the file and two datasets. One
@@ -196,26 +234,21 @@ def hdf5_writer(
 
             pbar.update(len(images))
 
+    archive.close()
+
 
 if __name__ == "__main__":
-    # Parameters
     args = arguments()
     source_dir = args.source_dir
     dest_dir = args.dest_dir
-    batch_size = args.batch_size
-    chunk_size = args.chunk_size
+    num_images = args.num_images
     if args.compression:
         compression_filter = args.compression_filter
     else:
         compression_filter = None
 
+    # Image filters to store in the HDF5 file
     filters = ("red", "green", "blue", "yellow")
-
-    # Just for testing; set to None to store all images in hdf5
-    if args.num_images == 0:
-        num_images = None
-    else:
-        num_images = args.num_images
 
     # Relevant paths for the kaggle dataset
     train_zip = os.path.join(source_dir, "train.zip")
@@ -226,53 +259,69 @@ if __name__ == "__main__":
     train_hdf5 = os.path.join(dest_dir, "train.hdf5")
     test_hdf5 = os.path.join(dest_dir, "test.hdf5")
 
+    # Get the data frame from the Kaggle CSV file. The data frame contains only rows
+    # with one or more of the selected target classes
+    print("Class selection (Kaggle):", args.selection)
+    train_df = get_train_dataframe(
+        csv_path, class_selection=args.selection, max_limit=num_images
+    )
+    print("Sample of the Kaggle training dataset:\n", train_df.head(15))
+
+    print()
     print("Creating an HDF5 file for the training set")
     print("Loading from:", train_zip)
     print("HDF5 file will be stored at:", train_hdf5)
     hdf5_writer(
         train_zip,
+        train_df["Id"].tolist(),
         train_hdf5,
-        batch_size,
-        chunk_size,
-        compression_filter,
-        max_limit=num_images,
+        args.batch_size,
+        args.chunk_size,
+        compression=compression_filter,
     )
 
     if args.extra_data:
-        # Relevant paths for the external data
+        # Similar procedure to the Kaggle dataset: set paths, get class filtered data
+        # frame, and write HDF5 file
         hpav18_train_zip = os.path.join(source_dir, "HPAv18_train.zip")
         hpav18_csv_path = os.path.join(source_dir, "HPAv18_train.csv")
-        merged_csv = os.path.join(dest_dir, "kaggle_HPAv18_train.csv")
+        concat_csv = os.path.join(dest_dir, "kaggle_HPAv18_train.csv")
 
-        # Add external data to the existing HDF5 file
+        print()
+        print("Class selection (HPAv18):", args.selection_HPAv18)
+        hpav18_train_df = get_train_dataframe(
+            hpav18_csv_path, class_selection=args.selection_HPAv18, max_limit=num_images
+        )
+        print("Sample of the HPAv18 training dataset:\n", hpav18_train_df.head(15))
+
         print()
         print("Adding extra data to ", train_hdf5)
         print("Loading from:", hpav18_train_zip)
         hdf5_writer(
             hpav18_train_zip,
+            hpav18_train_df["Id"].tolist(),
             train_hdf5,
-            batch_size,
-            chunk_size,
-            compression_filter,
-            max_limit=num_images,
+            args.batch_size,
+            args.chunk_size,
+            compression=compression_filter,
             append=True,
         )
 
-        # Merge the CSV files
-        df = pd.read_csv(csv_path)
-        hpav18_df = pd.read_csv(hpav18_csv_path)
-        df = pd.concat([df[:num_images], hpav18_df[:num_images]], ignore_index=True)
-        df.to_csv(merged_csv, index=False)
+        # Must join the two CSV files to reflect the HDF5 file
+        concat_df = [train_df[:num_images], hpav18_train_df[:num_images]]
+        df = pd.concat(concat_df, ignore_index=True)
+        df.to_csv(concat_csv, index=False)
 
     print()
     print("Creating an HDF5 file for the test set")
     print("Loading from:", test_zip)
     print("HDF5 file will be stored at:", test_hdf5)
+    filenames = get_test_filenames(test_zip, max_limit=num_images)
     hdf5_writer(
         test_zip,
+        filenames,
         test_hdf5,
-        batch_size,
-        chunk_size,
-        compression_filter,
-        max_limit=num_images,
+        args.batch_size,
+        args.chunk_size,
+        compression=compression_filter,
     )
