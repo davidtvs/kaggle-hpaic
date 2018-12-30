@@ -21,6 +21,7 @@
     "min_clip": null,
     "max_clip": null,
     "damping_r": null,
+    "optim": "adam",
     "lr": 0.001,
     "weight_decay": 0,
     "lr_patience": 3,

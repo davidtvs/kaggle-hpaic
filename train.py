@@ -1,7 +1,6 @@
 import os
 import numpy as np
 import torch
-import torch.optim as optim
 import torchvision.transforms as tf
 from argparse import ArgumentParser
 import core
@@ -85,6 +84,9 @@ if __name__ == "__main__":
         # Get the sample weight from the sampler; need to unsqueeze the last dimension
         # so numpy can broadcast the array when computing the weights
         sample_weights = train_sampler(dataset.targets).weights.unsqueeze(-1).numpy()
+        class_w = np.mean(dataset.targets * sample_weights, axis=0)
+        freq = class_w / np.sum(class_w)
+        print("Sampler class frequency:\n", freq)
 
     weights = utils.get_weights(
         config["weighing"],
@@ -99,7 +101,7 @@ if __name__ == "__main__":
     print("Minimum clip:", config["min_clip"])
     print("Maximum clip:", config["max_clip"])
     print("Damping ratio:", config["damping_r"])
-    print("Class weights:", weights)
+    print("Class weights:\n", weights)
 
     # Initialize the model
     net = model.resnet(
@@ -127,8 +129,8 @@ if __name__ == "__main__":
     print("Validation dataloaders:", val_loaders)
 
     # Optimizer
-    optimizer = optim.Adam(
-        net.parameters(), lr=config["lr"], weight_decay=config["weight_decay"]
+    optimizer = utils.get_optimizer(
+        config["optim"], net, config["lr"], config["weight_decay"]
     )
     print("Optimizer:", optimizer)
 

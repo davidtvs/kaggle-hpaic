@@ -3,6 +3,7 @@ from copy import deepcopy
 import json
 import torch
 import torch.nn as nn
+import torch.optim as optim
 import numpy as np
 import pandas as pd
 from functools import partial
@@ -70,6 +71,20 @@ def get_criterion(criterion_name, weight=None):
         raise ValueError("invalid loss: {}".format(criterion_name))
 
     return criterion
+
+
+def get_optimizer(optim_name, model, lr, weight_decay):
+    optim_name = optim_name.lower()
+    if optim_name == "adam":
+        optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+    elif optim_name == "sgd":
+        optimizer = optim.SGD(
+            model.parameters(), lr=lr, momentum=0.9, weight_decay=weight_decay
+        )
+    else:
+        raise ValueError("invalid optimizer: {}".format(optim_name))
+
+    return optimizer
 
 
 def get_metric_list(dataset):
