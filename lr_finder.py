@@ -1,5 +1,5 @@
+import numpy as np
 import torch
-import torch.optim as optim
 from torch.utils.data import DataLoader
 import torchvision.transforms as tf
 from argparse import ArgumentParser
@@ -56,11 +56,9 @@ if __name__ == "__main__":
     args = arguments()
     config = utils.load_json(args.config)
 
-    # Configs that are used multiple times
+    # Device to be used
     device = torch.device(config["device"])
-    random_state = config["random_state"]
     print("Device:", device)
-    print("Random state:", random_state)
 
     # Data transformations for training
     image_size = (config["img_h"], config["img_w"])
@@ -86,68 +84,72 @@ if __name__ == "__main__":
     print("Training data transformation:", tf_train)
 
     # Initialize the dataset
-    dataset = HPADatasetHDF5(
-        config["dataset_dir"],
-        config["image_mode"],
-        transform=tf_train,
-        subset=config["subset"],
-        random_state=random_state,
-    )
+    dataset = HPADatasetHDF5(**config["dataset"], transform=tf_train)
     num_classes = len(dataset.label_to_name)
     print("No. classes:", num_classes)
     print("Training set size:", len(dataset))
 
     # Intiliaze the sampling strategy
-    train_sampler = utils.get_partial_sampler(config["sampler"])
+    print("Sampler config:\n", config["sampler"])
+    sampler_weights = utils.get_weights(
+        dataset.targets, device=device, **config["sampler"]["weights"]
+    )
+    train_sampler = utils.get_partial_sampler(
+        config["sampler"]["mode"], sampler_weights
+    )
     if train_sampler is not None:
         train_sampler = train_sampler(dataset.targets)
-    print("Training sampler instance:", train_sampler)
+    print("Sampler instance:\n", train_sampler)
 
-    # Compute class weights
-    if train_sampler is None:
-        sample_weights = None
-    else:
-        sample_weights = train_sampler(dataset.targets)
-
-    weights = utils.get_weights(
-        config["weighing"],
-        dataset.targets,
-        sample_weights,
-        config["min_clip"],
-        config["max_clip"],
-        config["damping_r"],
-        device,
+    # Initialize the dataloader
+    dl_cfg = config["dataloader"]
+    print("Dataloader config:\n", dl_cfg)
+    train_loader = DataLoader(
+        dataset,
+        batch_size=dl_cfg["batch_size"],
+        shuffle=train_sampler is None,
+        sampler=train_sampler,
+        num_workers=dl_cfg["workers"],
     )
-    print("Frequency balancing mode:", config["weighing"])
-    print("Minimum clip:", config["min_clip"])
-    print("Maximum clip:", config["max_clip"])
-    print("Damping ratio:", config["damping_r"])
-    print("Class weights:", weights)
+    print("Dataloader:", train_loader)
 
     # Initialize the model
+    net_cfg = config["model"]
+    print("Model config:\n", net_cfg)
     net = model.resnet(
-        config["resnet_size"], num_classes, dropout_p=config["dropout_p"]
+        net_cfg["resnet_size"], num_classes, dropout_p=net_cfg["dropout_p"]
     )
     print(net)
 
-    # Select loss function
-    criterion = utils.get_criterion(config["loss"], weight=weights)
-    print("Criterion:", criterion)
+    # Create the loss criterion which can be weighted or not
+    if train_sampler is None:
+        sample_weights = None
+    else:
+        # Get the sample weight from the sampler; need to unsqueeze the last dimension
+        # so numpy can broadcast the array when computing the weights
+        sample_weights = train_sampler.weights.unsqueeze(-1).numpy()
 
-    # Initialize the dataloader
-    train_loader = DataLoader(
-        dataset,
-        batch_size=config["batch_size"],
-        shuffle=train_sampler is None,
-        sampler=train_sampler,
-        num_workers=config["workers"],
+        # Logging purposes only
+        class_w = np.mean(dataset.targets * sample_weights, axis=0)
+        freq = class_w / np.sum(class_w)
+        print("Sampler class frequency:\n", freq)
+
+    print("Criterion config:\n", config["criterion"])
+    weights = utils.get_weights(
+        dataset.targets,
+        sample_weights=sample_weights,
+        device=device,
+        **config["criterion"]["weights"]
     )
+    criterion = utils.get_criterion(config["criterion"]["name"], weight=weights)
+    print("Criterion class weights:\n", weights)
+    print("Criterion:", criterion)
 
     # Optimizer with learning rate set to the lower limit of the learning rate range
     # to test
-    optimizer = optim.Adam(
-        net.parameters(), lr=args.initial_lr, weight_decay=config["weight_decay"]
-    )
+    print("Criterion config:\n", config["optim"])
+    optimizer = utils.get_optimizer(net, **config["optim"])
+    print("Optimizer:", optimizer)
 
     # Run the learning rate finder (fastai version)
     lr_finder = LRFinder(net, optimizer, criterion, device=device)

@@ -121,25 +121,26 @@ if __name__ == "__main__":
     print("Testing data transformation:", transform)
 
     # Initialize the dataset
+    ds_cfg = config["dataset"]
+    print("Dataset configuration:\n", ds_cfg)
     dataset = data.HPADatasetHDF5(
-        config["dataset_dir"],
-        config["image_mode"],
-        is_training=False,
-        transform=transform,
+        ds_cfg["root_dir"], ds_cfg["filters"], is_training=False, transform=transform
     )
     num_classes = len(dataset.label_to_name)
     print("No. classes:", num_classes)
     print("Test set size:", len(dataset))
 
     # Initialize the dataloader
+    dl_cfg = config["dataloader"]
+    print("Dataloader config:\n", dl_cfg)
     dataloader = DataLoader(
         dataset,
-        batch_size=config["batch_size"],
+        batch_size=dl_cfg["batch_size"],
         shuffle=False,
-        num_workers=config["workers"],
+        num_workers=dl_cfg["workers"],
     )
 
-    # Handle TTA
+    # Create dataloaders for TTA
     print("Test time augmentations:", args.tta)
     if args.tta:
         tta_tf = get_tta(
@@ -152,7 +153,7 @@ if __name__ == "__main__":
             degrees=args.degrees,
         )
         tta_loaders = data.utils.tta_loaders(
-            dataset, config["batch_size"], tta_tf, num_workers=config["workers"]
+            dataset, dl_cfg["batch_size"], tta_tf, num_workers=dl_cfg["workers"]
         )
 
         print("TTA transformations:\n", tta_tf)
@@ -162,8 +163,10 @@ if __name__ == "__main__":
     metrics = utils.get_metric_list(dataset)
 
     # Initialize the model
+    net_cfg = config["model"]
+    print("Model config:\n", net_cfg)
     net = model.resnet(
-        config["resnet_size"], num_classes, dropout_p=config["dropout_p"]
+        net_cfg["resnet_size"], num_classes, dropout_p=net_cfg["dropout_p"]
     )
     print(net)
 
@@ -212,6 +215,7 @@ if __name__ == "__main__":
             output_fn = partial(utils.sigmoid_threshold, threshold=threshold)
 
             # Make predictions using the threshold from the dictionary
+            print("Test set")
             predictions = predict(net, dataloader, output_fn=output_fn, device=device)
             predictions = predictions.cpu().numpy()
 

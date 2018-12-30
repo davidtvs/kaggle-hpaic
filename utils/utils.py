@@ -24,33 +24,36 @@ def load_json(filepath):
     return data
 
 
-def get_partial_sampler(sampler_mode):
+def get_partial_sampler(mode, class_weights):
     """Creates the sampling partial function to apply to the training labels"""
-    if sampler_mode is not None:
-        sampler_mode = sampler_mode.lower()
-        sampler = partial(data.utils.frequency_weighted_sampler, mode=sampler_mode)
+    if mode is not None:
+        sampler = partial(
+            data.utils.frequency_weighted_sampler,
+            class_weights=class_weights,
+            mode=mode.lower(),
+        )
     else:
         sampler = None
 
     return sampler
 
 
-def get_weights(scaling, labels, sample_weights, min_clip, max_clip, damping_r, device):
+def get_weights(
+    labels, scaling, min_clip, max_clip, damping_r, device, sample_weights=None
+):
     """Computes class weights given the type scaling for frequency balancing."""
-    if scaling:
-        scaling = scaling.lower()
+    if scaling is not None:
         weights = data.utils.frequency_balancing(
             labels,
-            scaling=scaling,
+            scaling=scaling.lower(),
             sample_weights=sample_weights,
             min_clip=min_clip,
             max_clip=max_clip,
             damping_r=damping_r,
         )
+        weights = torch.tensor(weights, dtype=torch.float, device=device)
     else:
-        weights = np.ones((labels.shape[-1],))
-
-    weights = torch.tensor(weights, dtype=torch.float, device=device)
+        weights = None
 
     return weights
 
@@ -73,16 +76,16 @@ def get_criterion(criterion_name, weight=None):
     return criterion
 
 
-def get_optimizer(optim_name, model, lr, weight_decay):
-    optim_name = optim_name.lower()
-    if optim_name == "adam":
+def get_optimizer(model, name, lr, weight_decay):
+    name = name.lower()
+    if name == "adam":
         optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
-    elif optim_name == "sgd":
+    elif name == "sgd":
         optimizer = optim.SGD(
             model.parameters(), lr=lr, momentum=0.9, weight_decay=weight_decay
         )
     else:
-        raise ValueError("invalid optimizer: {}".format(optim_name))
+        raise ValueError("invalid optimizer: {}".format(name))
 
     return optimizer
 

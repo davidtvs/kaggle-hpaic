@@ -260,12 +260,8 @@ def frequency_balancing(
     return w
 
 
-def frequency_weighted_sampler(labels, mode="mean"):
-    # Get the class frequencies and multiply them by the targets (multi-label binary
-    # matrix). The result is a matrix where at each positive label the corresponding
-    # weight is found
-    w = frequency_balancing(labels, scaling="median")
-    samples_weight = labels * w
+def frequency_weighted_sampler(labels, class_weights, mode="mean"):
+    samples_weight = labels * class_weights
 
     # To apply the specified operation we want to ignore the 0s; the simplest way of
     # achieving this goal is to set all 0s to NaN and use the operations that ignore NaN

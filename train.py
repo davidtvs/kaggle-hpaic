@@ -30,11 +30,9 @@ if __name__ == "__main__":
     args = arguments()
     config = utils.load_json(args.config)
 
-    # Configs that are used multiple times
+    # Device to be used
     device = torch.device(config["device"])
-    random_state = config["random_state"]
     print("Device:", device)
-    print("Random state:", random_state)
 
     # Data transformations for training and validation
     image_size = (config["img_h"], config["img_w"])
@@ -63,75 +61,73 @@ if __name__ == "__main__":
     print("Sample transform when validation:", tf_val)
 
     # Initialize the dataset
-    dataset = data.HPADatasetHDF5(
-        config["dataset_dir"],
-        config["image_mode"],
-        subset=config["subset"],
-        random_state=random_state,
-    )
+    print("Dataset configuration:\n", config["dataset"])
+    dataset = data.HPADatasetHDF5(**config["dataset"])
     num_classes = len(dataset.label_to_name)
     print("No. classes:", num_classes)
     print("Training set size:", len(dataset))
 
     # Intiliaze the sampling strategy
-    train_sampler = utils.get_partial_sampler(config["sampler"])
-    print("Training sampler instance:", train_sampler)
+    print("Sampler config:\n", config["sampler"])
+    sampler_weights = utils.get_weights(
+        dataset.targets, device=device, **config["sampler"]["weights"]
+    )
+    train_sampler = utils.get_partial_sampler(
+        config["sampler"]["mode"], sampler_weights
+    )
+    print("Sampler instance:\n", train_sampler)
 
-    # Compute class weights
+    # Split dataset into k-sets and get one dataloader for each set
+    dl_cfg = config["dataloader"]
+    print("Dataloader config:\n", dl_cfg)
+    train_loaders, val_loaders = data.utils.kfold_loaders(
+        dataset,
+        dl_cfg["n_splits"],
+        dl_cfg["batch_size"],
+        tf_train=tf_train,
+        tf_val=tf_val,
+        train_sampler=train_sampler,
+        num_workers=dl_cfg["workers"],
+        random_state=dl_cfg["random_state"],
+    )
+    print("Training dataloaders:", train_loaders)
+    print("Validation dataloaders:", val_loaders)
+
+    # Initialize the model
+    net_cfg = config["model"]
+    print("Model config:\n", net_cfg)
+    net = model.resnet(
+        net_cfg["resnet_size"], num_classes, dropout_p=net_cfg["dropout_p"]
+    )
+    print(net)
+
+    # Create the loss criterion which can be weighted or not
     if train_sampler is None:
         sample_weights = None
     else:
         # Get the sample weight from the sampler; need to unsqueeze the last dimension
         # so numpy can broadcast the array when computing the weights
         sample_weights = train_sampler(dataset.targets).weights.unsqueeze(-1).numpy()
+
+        # Logging purposes only
         class_w = np.mean(dataset.targets * sample_weights, axis=0)
         freq = class_w / np.sum(class_w)
         print("Sampler class frequency:\n", freq)
 
+    print("Criterion config:\n", config["criterion"])
     weights = utils.get_weights(
-        config["weighing"],
         dataset.targets,
-        sample_weights,
-        config["min_clip"],
-        config["max_clip"],
-        config["damping_r"],
-        device,
+        sample_weights=sample_weights,
+        device=device,
+        **config["criterion"]["weights"]
     )
-    print("Frequency balancing mode:", config["weighing"])
-    print("Minimum clip:", config["min_clip"])
-    print("Maximum clip:", config["max_clip"])
-    print("Damping ratio:", config["damping_r"])
-    print("Class weights:\n", weights)
-
-    # Initialize the model
-    net = model.resnet(
-        config["resnet_size"], num_classes, dropout_p=config["dropout_p"]
-    )
-    print(net)
-
-    # Select loss function
-    criterion = utils.get_criterion(config["loss"], weight=weights)
+    criterion = utils.get_criterion(config["criterion"]["name"], weight=weights)
+    print("Criterion class weights:\n", weights)
     print("Criterion:", criterion)
 
-    # K-fold training
-    # Split dataset into k-sets and get one dataloader for each set
-    train_loaders, val_loaders = data.utils.kfold_loaders(
-        dataset,
-        config["n_splits"],
-        config["batch_size"],
-        tf_train=tf_train,
-        tf_val=tf_val,
-        train_sampler=train_sampler,
-        num_workers=config["workers"],
-        random_state=random_state,
-    )
-    print("Training dataloaders:", train_loaders)
-    print("Validation dataloaders:", val_loaders)
-
     # Optimizer
-    optimizer = utils.get_optimizer(
-        config["optim"], net, config["lr"], config["weight_decay"]
-    )
+    print("Criterion config:\n", config["optim"])
+    optimizer = utils.get_optimizer(net, **config["optim"])
     print("Optimizer:", optimizer)
 
     # Get list of metrics
@@ -157,11 +153,11 @@ if __name__ == "__main__":
         min_lr=config["min_lr"],
         device=device,
     )
-    load_checkpoint = config["load_checkpoint"]
-    if load_checkpoint and os.path.isdir(load_checkpoint):
-        print("Loading from checkpoint:", load_checkpoint)
-        print("Loading only weights from checkpoint?", config["weights_only"])
-        ktrainer.load_checkpoint(load_checkpoint, config["weights_only"])
+    load_cfg = config["load"]
+    if load_cfg["path"] is not None and os.path.isdir(load_cfg["path"]):
+        print("Loading from checkpoint:", load_cfg["path"])
+        print("Weights only:", load_cfg["weights_only"])
+        ktrainer.load_checkpoint(load_cfg["path"], load_cfg["weights_only"])
 
     scores = ktrainer.fit(train_loaders, val_loaders, output_fn=utils.sigmoid_threshold)
 

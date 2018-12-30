@@ -33,9 +33,7 @@ if __name__ == "__main__":
 
     # Configs that are used multiple times
     device = torch.device(config["device"])
-    random_state = config["random_state"]
     print("Device:", device)
-    print("Random state:", random_state)
 
     # Data transformations for validation
     image_size = (config["img_h"], config["img_w"])
@@ -45,36 +43,36 @@ if __name__ == "__main__":
 
     # Initialize the dataset; no need to set the transformation because it'll be
     # overwritten when creating the dataloaders
-    dataset = data.HPADatasetHDF5(
-        config["dataset_dir"],
-        config["image_mode"],
-        subset=config["subset"],
-        random_state=random_state,
-    )
+    print("Dataset configuration:\n", config["dataset"])
+    dataset = data.HPADatasetHDF5(**config["dataset"])
     num_classes = len(dataset.label_to_name)
     print("No. classes:", num_classes)
     print("Training set size:", len(dataset))
 
     # Split dataset into k-sets and get one dataloader for each set. Only the validation
     # sets are needed
+    dl_cfg = config["dataloader"]
+    print("Dataloader config:\n", dl_cfg)
     _, val_loaders = data.utils.kfold_loaders(
         dataset,
-        config["n_splits"],
-        config["batch_size"],
+        dl_cfg["n_splits"],
+        dl_cfg["batch_size"],
         tf_val=tf_val,
-        num_workers=config["workers"],
-        random_state=random_state,
+        num_workers=dl_cfg["workers"],
+        random_state=dl_cfg["random_state"],
     )
     print("Validation dataloaders:", val_loaders)
 
-    # Get list of metrics
-    metrics = utils.get_metric_list(dataset)
-
     # Initialize the model
+    net_cfg = config["model"]
+    print("Model config:\n", net_cfg)
     net = model.resnet(
-        config["resnet_size"], num_classes, dropout_p=config["dropout_p"]
+        net_cfg["resnet_size"], num_classes, dropout_p=net_cfg["dropout_p"]
     )
     print(net)
+
+    # Get list of metrics
+    metrics = utils.get_metric_list(dataset)
 
     # Load the models from the specified checkpoint location
     checkpoint_dir = os.path.join(config["checkpoint_dir"], config["name"])

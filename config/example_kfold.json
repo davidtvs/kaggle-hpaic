@@ -3,31 +3,54 @@
     "device": "cuda",
     "checkpoint_dir": "checkpoint",
     "epochs": 30,
-    "dataset_dir": "../dataset/",
-    "image_mode": "rgb",
     "img_h": 224,
     "img_w": 224,
-    "subset": 0.5,
-    "n_splits": 5,
-    "random_state": 92,
     "aug": false,
-    "batch_size": 16,
-    "sampler": null,
-    "workers": 4,
-    "resnet_size": 18,
-    "dropout_p": 0.5,
-    "loss": "bce",
-    "weighing": null,
-    "min_clip": null,
-    "max_clip": null,
-    "damping_r": null,
-    "optim": "adam",
-    "lr": 0.001,
-    "weight_decay": 0,
     "lr_patience": 3,
     "lr_factor": 0.1,
     "min_lr": 1e-6,
     "stop_patience": 10,
-    "load_checkpoint": null,
-    "weights_only": false
+    "dataset": {
+        "root_dir": "../dataset/",
+        "filters": "rgb",
+        "subset": 0.5,
+        "random_state": 92
+    },
+    "sampler": {
+        "mode": "mean",
+        "weights": {
+            "scaling": "median",
+            "min_clip": null,
+            "max_clip": null,
+            "damping_r": null
+        }
+    },
+    "dataloader": {
+        "n_splits": 5,
+        "batch_size": 16,
+        "workers": 4,
+        "random_state": 92
+    },
+    "model": {
+        "resnet_size": 34,
+        "dropout_p": 0.5
+    },
+    "criterion": {
+        "name": "bce",
+        "weights": {
+            "scaling": null,
+            "min_clip": null,
+            "max_clip": null,
+            "damping_r": null
+        }
+    },
+    "optim": {
+        "name": "adam",
+        "lr": 0.001,
+        "weight_decay": 0
+    },
+    "load": {
+        "path": null,
+        "weights_only": null
+    }
 }
