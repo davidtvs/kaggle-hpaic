@@ -70,6 +70,13 @@ def get_model(name, num_classes, dropout_p):
         net = model.resnet101(num_classes, dropout_p=dropout_p)
     elif name == "resnet152":
         net = model.resnet152(num_classes, dropout_p=dropout_p)
+    elif name == "inceptionv3":
+        net = model.inception_v3(
+            pretrained=True,
+            num_classes=num_classes,
+            dropout_p=dropout_p,
+            aux_logits=False,
+        )
     else:
         raise ValueError("invalid model: {}".format(name))
 
