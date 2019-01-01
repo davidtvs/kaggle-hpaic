@@ -58,6 +58,24 @@ def get_weights(
     return weights
 
 
+def get_model(name, num_classes, dropout_p):
+    name = name.lower()
+    if name == "resnet18":
+        net = model.resnet18(num_classes, dropout_p=dropout_p)
+    elif name == "resnet34":
+        net = model.resnet34(num_classes, dropout_p=dropout_p)
+    elif name == "resnet50":
+        net = model.resnet50(num_classes, dropout_p=dropout_p)
+    elif name == "resnet101":
+        net = model.resnet101(num_classes, dropout_p=dropout_p)
+    elif name == "resnet152":
+        net = model.resnet152(num_classes, dropout_p=dropout_p)
+    else:
+        raise ValueError("invalid model: {}".format(name))
+
+    return net
+
+
 def get_criterion(criterion_name, weight=None):
     criterion_name = criterion_name.lower()
     if criterion_name == "bce":

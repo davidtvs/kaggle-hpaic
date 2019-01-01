@@ -8,7 +8,6 @@ import torchvision.transforms as tf
 from core import predict
 import data
 from data.transforms import get_tta
-import model
 import utils
 
 
@@ -165,9 +164,7 @@ if __name__ == "__main__":
     # Initialize the model
     net_cfg = config["model"]
     print("Model config:\n", net_cfg)
-    net = model.resnet(
-        net_cfg["resnet_size"], num_classes, dropout_p=net_cfg["dropout_p"]
-    )
+    net = utils.get_model(net_cfg["name"], num_classes, dropout_p=net_cfg["dropout_p"])
     print(net)
 
     # Load the models from the specified checkpoint location

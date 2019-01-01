@@ -5,7 +5,6 @@ import torchvision.transforms as tf
 from argparse import ArgumentParser
 from core import evaluate
 import data
-import model
 import utils
 
 
@@ -66,9 +65,7 @@ if __name__ == "__main__":
     # Initialize the model
     net_cfg = config["model"]
     print("Model config:\n", net_cfg)
-    net = model.resnet(
-        net_cfg["resnet_size"], num_classes, dropout_p=net_cfg["dropout_p"]
-    )
+    net = utils.get_model(net_cfg["name"], num_classes, dropout_p=net_cfg["dropout_p"])
     print(net)
 
     # Get list of metrics

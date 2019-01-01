@@ -6,7 +6,6 @@ from argparse import ArgumentParser
 import core
 import data
 import data.transforms as m_tf
-import model
 import utils
 
 
@@ -96,9 +95,7 @@ if __name__ == "__main__":
     # Initialize the model
     net_cfg = config["model"]
     print("Model config:\n", net_cfg)
-    net = model.resnet(
-        net_cfg["resnet_size"], num_classes, dropout_p=net_cfg["dropout_p"]
-    )
+    net = utils.get_model(net_cfg["name"], num_classes, dropout_p=net_cfg["dropout_p"])
     print(net)
 
     # Create the loss criterion which can be weighted or not

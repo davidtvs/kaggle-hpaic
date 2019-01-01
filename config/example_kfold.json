@@ -32,7 +32,7 @@
         "random_state": 92
     },
     "model": {
-        "resnet_size": 34,
+        "name": "resnet34",
         "dropout_p": 0.5
     },
     "criterion": {
