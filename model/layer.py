@@ -2,21 +2,6 @@ import torch
 import torch.nn as nn
 
 
-def set_parameter_requires_grad(model, requires_grad):
-    """Sets the .requires_grad attribute of the parameters in the model.
-
-    Modified from:
-    https://pytorch.org/tutorials/beginner/finetuning_torchvision_models_tutorial.html
-
-    Arguments:
-        model (torch.nn.Module): the neural network container.
-        requires_grad (boolean): when False, all parameters are frozen and gradients are
-        not computed; when True, gradients are computed for all layers.
-    """
-    for param in model.parameters():
-        param.requires_grad = requires_grad
-
-
 def adaptive_head(in_features, num_classes, dropout_p):
     """Creates the head of a model that can accept images of any size.
 

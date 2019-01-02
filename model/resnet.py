@@ -1,16 +1,13 @@
 import torch.nn as nn
 import torchvision.models as models
-from .layer import set_parameter_requires_grad, adaptive_head
+from .layer import adaptive_head
 
 
-def resnet18(num_classes, feature_extraction=False, pretrained=True, dropout_p=0.5):
+def resnet18(num_classes, pretrained=True, dropout_p=0.5):
     """Builds a ResNet-18 network with an adaptive head.
 
     Arguments:
         num_classes (int): the number of classes that the model will output.
-        feature_extraction (boolean): when True, the pretrained layers are frozen and
-            gradients can only be computed for new layers; when False, gradients are
-            computed for all layers. Default: False.
         pretrained (boolean): if True, returns a model pre-trained on ImageNet.
             Default: True.
         dropout_p (float): probability of an element to be zeroed. Default: 0.5.
@@ -20,21 +17,14 @@ def resnet18(num_classes, feature_extraction=False, pretrained=True, dropout_p=0
     """
     model = models.resnet18(pretrained=pretrained)
 
-    # If in feature extraction mode, do not compute gradients for existing parameters
-    if feature_extraction:
-        set_parameter_requires_grad(model, False)
-
     return _resnet_adaptive_head(model, num_classes, dropout_p)
 
 
-def resnet34(num_classes, feature_extraction=False, pretrained=True, dropout_p=0.5):
+def resnet34(num_classes, pretrained=True, dropout_p=0.5):
     """Builds a ResNet-34 network with an adaptive head.
 
     Arguments:
         num_classes (int): the number of classes that the model will output.
-        feature_extraction (boolean): when True, the pretrained layers are frozen and
-            gradients can only be computed for new layers; when False, gradients are
-            computed for all layers. Default: False.
         pretrained (boolean): if True, returns a model pre-trained on ImageNet.
             Default: True.
         dropout_p (float): probability of an element to be zeroed. Default: 0.5.
@@ -44,21 +34,14 @@ def resnet34(num_classes, feature_extraction=False, pretrained=True, dropout_p=0
     """
     model = models.resnet34(pretrained=pretrained)
 
-    # If in feature extraction mode, do not compute gradients for existing parameters
-    if feature_extraction:
-        set_parameter_requires_grad(model, False)
-
     return _resnet_adaptive_head(model, num_classes, dropout_p)
 
 
-def resnet50(num_classes, feature_extraction=False, pretrained=True, dropout_p=0.5):
+def resnet50(num_classes, pretrained=True, dropout_p=0.5):
     """Builds a ResNet-50 network with an adaptive head.
 
     Arguments:
         num_classes (int): the number of classes that the model will output.
-        feature_extraction (boolean): when True, the pretrained layers are frozen and
-            gradients can only be computed for new layers; when False, gradients are
-            computed for all layers. Default: False.
         pretrained (boolean): if True, returns a model pre-trained on ImageNet.
             Default: True.
         dropout_p (float): probability of an element to be zeroed. Default: 0.5.
@@ -68,21 +51,14 @@ def resnet50(num_classes, feature_extraction=False, pretrained=True, dropout_p=0
     """
     model = models.resnet50(pretrained=pretrained)
 
-    # If in feature extraction mode, do not compute gradients for existing parameters
-    if feature_extraction:
-        set_parameter_requires_grad(model, False)
-
     return _resnet_adaptive_head(model, num_classes, dropout_p)
 
 
-def resnet101(num_classes, feature_extraction=False, pretrained=True, dropout_p=0.5):
+def resnet101(num_classes, pretrained=True, dropout_p=0.5):
     """Builds a ResNet-101 network with an adaptive head.
 
     Arguments:
         num_classes (int): the number of classes that the model will output.
-        feature_extraction (boolean): when True, the pretrained layers are frozen and
-            gradients can only be computed for new layers; when False, gradients are
-            computed for all layers. Default: False.
         pretrained (boolean): if True, returns a model pre-trained on ImageNet.
             Default: True.
         dropout_p (float): probability of an element to be zeroed. Default: 0.5.
@@ -92,21 +68,14 @@ def resnet101(num_classes, feature_extraction=False, pretrained=True, dropout_p=
     """
     model = models.resnet101(pretrained=pretrained)
 
-    # If in feature extraction mode, do not compute gradients for existing parameters
-    if feature_extraction:
-        set_parameter_requires_grad(model, False)
-
     return _resnet_adaptive_head(model, num_classes, dropout_p)
 
 
-def resnet152(num_classes, feature_extraction=False, pretrained=True, dropout_p=0.5):
+def resnet152(num_classes, pretrained=True, dropout_p=0.5):
     """Builds a ResNet-152 network with an adaptive head.
 
     Arguments:
         num_classes (int): the number of classes that the model will output.
-        feature_extraction (boolean): when True, the pretrained layers are frozen and
-            gradients can only be computed for new layers; when False, gradients are
-            computed for all layers. Default: False.
         pretrained (boolean): if True, returns a model pre-trained on ImageNet.
             Default: True.
         dropout_p (float): probability of an element to be zeroed. Default: 0.5.
@@ -115,10 +84,6 @@ def resnet152(num_classes, feature_extraction=False, pretrained=True, dropout_p=
         torch.nn.Module: ResNet-152 model.
     """
     model = models.resnet152(pretrained=pretrained)
-
-    # If in feature extraction mode, do not compute gradients for existing parameters
-    if feature_extraction:
-        set_parameter_requires_grad(model, False)
 
     return _resnet_adaptive_head(model, num_classes, dropout_p)
 
