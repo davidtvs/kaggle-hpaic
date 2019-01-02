@@ -81,6 +81,7 @@ def kfold_loaders(
             batch_size=batch_size,
             shuffle=train_shuffle,
             sampler=subsampler,
+            drop_last=True,
             num_workers=num_workers,
         )
         train.append(loader_train)
@@ -168,6 +169,7 @@ def train_val_loaders(
         batch_size=batch_size,
         shuffle=train_shuffle,
         sampler=sampler,
+        drop_last=True,
         num_workers=num_workers,
     )
 
