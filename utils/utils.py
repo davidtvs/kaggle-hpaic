@@ -77,6 +77,8 @@ def get_model(name, num_classes, dropout_p):
             dropout_p=dropout_p,
             aux_logits=False,
         )
+    elif name == "bninception":
+        net = model.bninception(num_classes, dropout_p=dropout_p)
     else:
         raise ValueError("invalid model: {}".format(name))
 
