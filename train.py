@@ -64,7 +64,7 @@ if __name__ == "__main__":
     dataset = data.HPADatasetHDF5(**config["dataset"])
     num_classes = len(dataset.label_to_name)
     print("No. classes:", num_classes)
-    print("Training set size:", len(dataset))
+    print("Dataset size:", len(dataset))
 
     # Intiliaze the sampling strategy
     print("Sampler config:\n", config["sampler"])
@@ -76,21 +76,40 @@ if __name__ == "__main__":
     )
     print("Sampler instance:\n", train_sampler)
 
-    # Split dataset into k-sets and get one dataloader for each set
+    # Initialize dataloaders for standard or K-fold training
     dl_cfg = config["dataloader"]
     print("Dataloader config:\n", dl_cfg)
-    train_loaders, val_loaders = data.utils.kfold_loaders(
-        dataset,
-        dl_cfg["n_splits"],
-        dl_cfg["batch_size"],
-        tf_train=tf_train,
-        tf_val=tf_val,
-        train_sampler=train_sampler,
-        num_workers=dl_cfg["workers"],
-        random_state=dl_cfg["random_state"],
-    )
-    print("Training dataloaders:", train_loaders)
-    print("Validation dataloaders:", val_loaders)
+    if dl_cfg["n_splits"] > 1:
+        # Split dataset into k-sets and get one dataloader for each set
+        train_loaders, val_loaders = data.utils.kfold_loaders(
+            dataset,
+            dl_cfg["n_splits"],
+            dl_cfg["batch_size"],
+            tf_train=tf_train,
+            tf_val=tf_val,
+            train_sampler=train_sampler,
+            num_workers=dl_cfg["workers"],
+            random_state=dl_cfg["random_state"],
+        )
+    else:
+        # Single dataset split into training and validation
+        train_loader, val_loader = data.utils.train_val_loaders(
+            dataset,
+            dl_cfg["val_size"],
+            dl_cfg["batch_size"],
+            tf_train=tf_train,
+            tf_val=tf_val,
+            train_sampler=train_sampler,
+            num_workers=dl_cfg["workers"],
+            random_state=dl_cfg["random_state"],
+        )
+        train_loaders = [train_loader]
+        val_loaders = [val_loader]
+
+    print("Training dataloader(s):", train_loaders)
+    print("Training dataloader(s) size:", len(train_loaders[0].dataset))
+    print("Validation dataloader(s):", val_loaders)
+    print("Validation dataloader(s) size:", len(val_loaders[0].dataset))
 
     # Initialize the model
     net_cfg = config["model"]
@@ -158,16 +177,17 @@ if __name__ == "__main__":
 
     scores = ktrainer.fit(train_loaders, val_loaders, output_fn=utils.sigmoid_threshold)
 
-    # Compute the cross-validation score (average of all folds)
-    avg_scores_train = np.mean(scores[0], axis=0)
-    avg_scores_val = np.mean(scores[1], axis=0)
-    print(
-        "K-fold average training metrics: {}".format(
-            np.round(avg_scores_train, 4).tolist()
+    if dl_cfg["n_splits"] > 1:
+        # Compute the cross-validation score (average of all folds)
+        avg_scores_train = np.mean(scores[0], axis=0)
+        avg_scores_val = np.mean(scores[1], axis=0)
+        print(
+            "K-fold average training metrics: {}".format(
+                np.round(avg_scores_train, 4).tolist()
+            )
         )
-    )
-    print(
-        "K-fold average validation CV metrics: {}".format(
-            np.round(avg_scores_val, 4).tolist()
+        print(
+            "K-fold average validation CV metrics: {}".format(
+                np.round(avg_scores_val, 4).tolist()
+            )
         )
-    )

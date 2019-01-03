@@ -46,21 +46,37 @@ if __name__ == "__main__":
     dataset = data.HPADatasetHDF5(**config["dataset"])
     num_classes = len(dataset.label_to_name)
     print("No. classes:", num_classes)
-    print("Training set size:", len(dataset))
+    print("Dataset size:", len(dataset))
 
-    # Split dataset into k-sets and get one dataloader for each set. Only the validation
-    # sets are needed
+    # Initialize dataloaders
     dl_cfg = config["dataloader"]
     print("Dataloader config:\n", dl_cfg)
-    _, val_loaders = data.utils.kfold_loaders(
-        dataset,
-        dl_cfg["n_splits"],
-        dl_cfg["batch_size"],
-        tf_val=tf_val,
-        num_workers=dl_cfg["workers"],
-        random_state=dl_cfg["random_state"],
-    )
-    print("Validation dataloaders:", val_loaders)
+    if dl_cfg["n_splits"] > 1:
+        # Split dataset into k-sets and get one dataloader for each set. Only the
+        # validation sets are needed
+        _, val_loaders = data.utils.kfold_loaders(
+            dataset,
+            dl_cfg["n_splits"],
+            dl_cfg["batch_size"],
+            tf_val=tf_val,
+            num_workers=dl_cfg["workers"],
+            random_state=dl_cfg["random_state"],
+        )
+    else:
+        # Single dataset split into training and validation. Only the validation sets
+        # are needed
+        _, val_loader = data.utils.train_val_loaders(
+            dataset,
+            dl_cfg["val_size"],
+            dl_cfg["batch_size"],
+            tf_val=tf_val,
+            num_workers=dl_cfg["workers"],
+            random_state=dl_cfg["random_state"],
+        )
+        val_loaders = [val_loader]
+
+    print("Validation dataloader(s):", val_loaders)
+    print("Validation dataloader(s) size:", len(val_loaders[0].dataset))
 
     # Initialize the model
     net_cfg = config["model"]
@@ -89,7 +105,7 @@ if __name__ == "__main__":
     for idx, (single_th, class_th) in enumerate(th_search):
         print()
         print("-" * 80)
-        print("Fold {}".format(idx + 1))
+        print("Fold {}/{}".format(idx + 1, len(th_search)))
         print("-" * 80)
         print()
 

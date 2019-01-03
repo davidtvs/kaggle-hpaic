@@ -25,6 +25,7 @@ def arguments():
     parser.add_argument(
         "--fill-empty",
         type=int,
+        default=25,
         help=(
             "Samples where the model makes no prediction are changed to output the "
             "class specified in this argument. If not set, empty predictions are "
@@ -252,15 +253,16 @@ if __name__ == "__main__":
 
     # For each type of threshold the loop below will make an ensemble of all folds and
     # and create a submission file
-    for key, pred_list in predictions_dict.items():
-        ensemble = utils.ensembler(pred_list)
-        if args.fill_empty is not None:
-            ensemble = utils.fill_empty_predictions(ensemble, args.fill_empty)
+    if len(knets) > 1:
+        for key, pred_list in predictions_dict.items():
+            ensemble = utils.ensembler(pred_list)
+            if args.fill_empty is not None:
+                ensemble = utils.fill_empty_predictions(ensemble, args.fill_empty)
 
-        # Construct the filename of the submission file; using the dictionary key
-        # guarantees that the filenames are unique
-        csv_name = "ensemble_{}.csv".format(key)
-        csv_path = os.path.join(submission_dir, csv_name)
-        utils.make_submission(ensemble, dataset.sample_names, csv_path)
-        print("Saved ensemble submission in: {}".format(csv_path))
-        print()
+            # Construct the filename of the submission file; using the dictionary key
+            # guarantees that the filenames are unique
+            csv_name = "ensemble_{}.csv".format(key)
+            csv_path = os.path.join(submission_dir, csv_name)
+            utils.make_submission(ensemble, dataset.sample_names, csv_path)
+            print("Saved ensemble submission in: {}".format(csv_path))
+            print()
