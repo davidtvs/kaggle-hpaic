@@ -105,7 +105,7 @@ if __name__ == "__main__":
     for idx, (single_th, class_th) in enumerate(th_search):
         print()
         print("-" * 80)
-        print("Fold {}/{}".format(idx + 1, len(th_search)))
+        print("Fold {}/{}".format(idx + 1, len(knets)))
         print("-" * 80)
         print()
 
