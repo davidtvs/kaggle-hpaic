@@ -79,6 +79,8 @@ def get_model(name, num_classes, dropout_p):
         )
     elif name == "bninception":
         net = model.bninception(num_classes, dropout_p=dropout_p)
+    elif name == "se_resnet50":
+        net = model.se_resnet50(num_classes, dropout_p=dropout_p)
     else:
         raise ValueError("invalid model: {}".format(name))
 
