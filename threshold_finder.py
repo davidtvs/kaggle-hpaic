@@ -112,7 +112,7 @@ if __name__ == "__main__":
         # Create a new dictionary entry for each fold where the results will be stored
         # in a nested dictionary
         key = "fold_" + str(idx + 1)
-        results[key] = {"default": {}, "single_best": {}, "class_best": {}}
+        results[key] = {"default": {}, "lb": {}, "single_best": {}, "class_best": {}}
 
         # Score the model using the standard decision threshold (0.5) used during
         # training
@@ -122,6 +122,16 @@ if __name__ == "__main__":
         )
         results[key]["default"]["threshold"] = 0.5
         results[key]["default"]["metrics"] = str(metrics)
+        print(metrics)
+        print()
+
+        # Score the model using a decision threshold of 0.3 (for some reason this does
+        # really well on LB)
+        print("Evaluating using a threshold of 0.3")
+        output_fn = partial(utils.sigmoid_threshold, threshold=0.3)
+        metrics = evaluate(knets[idx], val_loaders[idx], metrics, output_fn=output_fn)
+        results[key]["lb"]["threshold"] = 0.3
+        results[key]["lb"]["metrics"] = str(metrics)
         print(metrics)
         print()
 
