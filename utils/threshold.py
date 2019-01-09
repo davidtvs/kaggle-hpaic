@@ -17,7 +17,7 @@ def sigmoid_threshold(tensor, threshold=0.5):
     Returns:
         torch.Tensor: same shape as the input with values {0, 1}.
     """
-    threshold = torch.tensor(threshold, dtype=torch.float).to(tensor.device)
+    threshold = torch.tensor(threshold, dtype=tensor.dtype).to(tensor.device)
     out = torch.sigmoid(tensor)
 
     return out > threshold

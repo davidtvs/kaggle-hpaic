@@ -1,7 +1,7 @@
 import os
 import errno
 from argparse import ArgumentParser
-from functools import partial
+import numpy as np
 import torch
 from torch.utils.data import DataLoader
 import torchvision.transforms as tf
@@ -155,9 +155,16 @@ if __name__ == "__main__":
         tta_loaders = data.utils.tta_loaders(
             dataset, dl_cfg["batch_size"], tta_tf, num_workers=dl_cfg["workers"]
         )
-
         print("TTA transformations:\n", tta_tf)
         print("Number of TTA dataloaders:", len(tta_loaders))
+
+        # Create the array of weights to use when ensembling with TTA
+        tta_weights = np.zeros(len(tta_tf) + 1) + args.tta_weight / len(tta_tf)
+        tta_weights[0] = 1 - args.tta_weight
+        assert tta_weights.sum() == 1, "sum of weights is not 1: sum of {} = {}".format(
+            tta_weights, tta_weights.sum()
+        )
+        print("TTA ensembling weights:\n", tta_weights)
 
     # Get list of metrics
     metrics = utils.get_metric_list(dataset)
@@ -194,7 +201,7 @@ if __name__ == "__main__":
     print("-" * 80)
     print("Generating predictions")
     print("-" * 80)
-    predictions_dict = {}
+    logits_dict = {}
     for idx, net in enumerate(knets):
         print()
         print("-" * 80)
@@ -210,59 +217,85 @@ if __name__ == "__main__":
         for th_key in threshold_dict[fold_key].keys():
             threshold = threshold_dict[fold_key][th_key]["threshold"]
             print("Decision threshold:\n", threshold)
-            output_fn = partial(utils.sigmoid_threshold, threshold=threshold)
 
-            # Make predictions using the threshold from the dictionary
+            # Get the logits for the test set
             print("Test set")
-            predictions = predict(net, dataloader, output_fn=output_fn, device=device)
-            predictions = predictions.cpu().numpy()
+            logits = predict(net, dataloader, device=device).cpu().numpy()
 
             if args.tta:
-                # Make predictions for TTA
-                tta_predictions = []
+                # Get the logits for each TTA
+                logits_list = [logits]
                 for idx, loader in enumerate(tta_loaders):
                     print("TTA {}/{}".format(idx + 1, len(tta_loaders)))
-                    tta_pred = predict(net, loader, output_fn=output_fn, device=device)
-                    tta_pred = tta_pred.cpu().numpy()
-                    tta_predictions.append(tta_pred)
+                    tta_logits = predict(net, loader, device=device).cpu().numpy()
+                    logits_list.append(tta_logits)
 
-                # Ensemble regular predictions with TTA predictions
-                predictions = utils.tta_ensembler(
-                    predictions, tta_predictions, tta_weight=args.tta_weight
-                )
+                # Ensemble test and TTA logits
+                logits = utils.ensembler(logits_list, weights=tta_weights)
 
-            # Store the predictions for this threshold in the dictionary
-            if th_key in predictions_dict:
-                predictions_dict[th_key].append(predictions.copy())
+            # Store the final logits in a dictionary to ensemble later
+            if th_key in logits_dict:
+                logits_dict[th_key]["logits"].append(logits.copy())
+                logits_dict[th_key]["threshold"].append(threshold)
             else:
-                predictions_dict[th_key] = [predictions.copy()]
+                logits_dict[th_key] = {}
+                logits_dict[th_key]["logits"] = [logits.copy()]
+                logits_dict[th_key]["threshold"] = [threshold]
 
-            # Change empty predictions to class 0 (a wrong prediction has the same cost
-            # as not predicting anything, so might aswell predict the majority class)
-            # This is done after storing the predictions so that there is no bias when
-            # ensembling
-            if args.fill_empty is not None:
-                predictions = utils.fill_empty_predictions(predictions, args.fill_empty)
+            # Compute predictions from logits and threshold
+            logits = torch.tensor(logits)
+            predictions = utils.sigmoid_threshold(logits, threshold=threshold)
+            predictions = predictions.cpu().numpy()
 
             # Construct the filename of the submission file using the dictionary keys
             csv_name = "{}_{}.csv".format(fold_key, th_key)
             csv_path = os.path.join(submission_dir, csv_name)
             utils.make_submission(predictions, dataset.sample_names, csv_path)
-            print("Saved submission in: {}".format(csv_path))
+            print("Saved submission in:", csv_path)
+
+            # Change empty predictions to the specified class - see arguments
+            # (a wrong prediction has the same cost as not predicting anything, so might
+            # aswell predict something)
+            if args.fill_empty is not None:
+                print("Filling empty predictions with", args.fill_empty)
+                predictions = utils.fill_empty_predictions(predictions, args.fill_empty)
+                csv_name = "{}_{}_fill{}.csv".format(fold_key, th_key, args.fill_empty)
+                csv_path = os.path.join(submission_dir, csv_name)
+                utils.make_submission(predictions, dataset.sample_names, csv_path)
+                print("Saved submission in:", csv_path)
+
             print()
 
     # For each type of threshold the loop below will make an ensemble of all folds and
     # and create a submission file
     if len(knets) > 1:
-        for key, pred_list in predictions_dict.items():
-            ensemble = utils.ensembler(pred_list)
-            if args.fill_empty is not None:
-                ensemble = utils.fill_empty_predictions(ensemble, args.fill_empty)
+        for key, value_dict in logits_dict.items():
+            logits_list = value_dict["logits"]
+            logits = utils.ensembler(logits_list)
+
+            # Get the  average threshold used with the logits
+            threshold_list = value_dict["threshold"]
+            threshold = np.mean(threshold_list, axis=0)
+            print("Decision threshold:\n", threshold)
+
+            # Compute predictions from logits and threshold
+            logits = torch.tensor(logits)
+            predictions = utils.sigmoid_threshold(logits, threshold=threshold)
+            predictions = predictions.cpu().numpy()
 
             # Construct the filename of the submission file; using the dictionary key
             # guarantees that the filenames are unique
             csv_name = "ensemble_{}.csv".format(key)
             csv_path = os.path.join(submission_dir, csv_name)
-            utils.make_submission(ensemble, dataset.sample_names, csv_path)
-            print("Saved ensemble submission in: {}".format(csv_path))
+            utils.make_submission(predictions, dataset.sample_names, csv_path)
+            print("Saved ensemble submission in:", csv_path)
+
+            if args.fill_empty is not None:
+                print("Filling empty predictions with", args.fill_empty)
+                predictions = utils.fill_empty_predictions(predictions, args.fill_empty)
+                csv_name = "ensemble_{}_fill{}.csv".format(key, args.fill_empty)
+                csv_path = os.path.join(submission_dir, csv_name)
+                utils.make_submission(predictions, dataset.sample_names, csv_path)
+                print("Saved submission in:", csv_path)
+
             print()
