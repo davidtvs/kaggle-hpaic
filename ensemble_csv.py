@@ -29,9 +29,10 @@ def arguments():
 
 
 def to_binary_target(target_str):
-    int_target = np.array(target_str.split(" "), dtype=int)
     bin_target = np.zeros(28)
-    bin_target[int_target] = 1
+    if isinstance(target_str, str):
+        int_target = np.array(target_str.split(" "), dtype=int)
+        bin_target[int_target] = 1
 
     return bin_target
 
