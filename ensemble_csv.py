@@ -48,14 +48,17 @@ if __name__ == "__main__":
         targets = np.array(list(map(to_binary_target, targets)))
         bin_target_list.append(targets)
 
-    ensemble = utils.ensembler(bin_target_list)
-    predictions = (ensemble > 0.5).astype(int)
-    if args.fill_empty is not None:
-        ensemble = utils.fill_empty_predictions(predictions, args.fill_empty)
+    predictions = utils.ensembler(bin_target_list)
+    predictions = (predictions > 0.5).astype(int)
 
-    # Construct the filename of the submission file; using the dictionary key
-    # guarantees that the filenames are unique
     save_path = os.path.join(args.dir, "ensemble.csv")
-    utils.make_submission(ensemble, df["Id"].values, save_path)
-    print("Saved ensemble submission in: {}".format(save_path))
-    print()
+    utils.make_submission(predictions, df["Id"].values, save_path)
+    print("Saved submission in: {}".format(save_path))
+
+    if args.fill_empty is not None:
+        print("Filling empty predictions with", args.fill_empty)
+        predictions = utils.fill_empty_predictions(predictions, args.fill_empty)
+        csv_name = "ensemble_fill{}.csv".format(args.fill_empty)
+        save_path = os.path.join(args.dir, csv_name)
+        utils.make_submission(predictions, df["Id"].values, save_path)
+        print("Saved submission in: {}".format(save_path))
