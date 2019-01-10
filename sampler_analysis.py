@@ -1,3 +1,4 @@
+from tqdm import tqdm
 import torch
 import numpy as np
 from torch.utils.data import DataLoader
@@ -12,7 +13,7 @@ def stats(dataset, batch_size, sampler, num_workers):
     count = torch.zeros(28, dtype=torch.long)
     label_dist = torch.zeros(28, dtype=torch.long)
 
-    for batch in dl:
+    for batch in tqdm(dl):
         count += batch["target"].sum(dim=0).long()
         for target in batch["target"]:
             label_dist[target.sum().long()] += 1
