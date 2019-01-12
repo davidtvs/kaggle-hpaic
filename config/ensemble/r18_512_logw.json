@@ -1,0 +1,57 @@
+{
+    "name": "r18_512_logw",
+    "device": "cuda",
+    "checkpoint_dir": "checkpoint",
+    "epochs": 100,
+    "img_h": 512,
+    "img_w": 512,
+    "aug": true,
+    "lr_patience": 3,
+    "lr_factor": 0.2,
+    "min_lr": 1e-7,
+    "stop_patience": 10,
+    "dataset": {
+        "root_dir": "../dataset/",
+        "filters": "rgb",
+        "subset": 1.0,
+        "random_state": 92
+    },
+    "sampler": {
+        "mode": "meanmax",
+        "weights": {
+            "scaling": "median",
+            "min_clip": null,
+            "max_clip": null,
+            "damping_r": null
+        }
+    },
+    "dataloader": {
+        "n_splits": 1,
+        "val_size": 0.15,
+        "batch_size": 24,
+        "workers": 4,
+        "random_state": 92
+    },
+    "model": {
+        "name": "resnet18",
+        "dropout_p": 0
+    },
+    "criterion": {
+        "name": "bce_w",
+        "weights": {
+            "scaling": "log",
+            "min_clip": null,
+            "max_clip": null,
+            "damping_r": 0.5
+        }
+    },
+    "optim": {
+        "name": "sgd",
+        "lr": 0.1,
+        "weight_decay": 1e-4
+    },
+    "load": {
+        "path": null,
+        "weights_only": null
+    }
+}

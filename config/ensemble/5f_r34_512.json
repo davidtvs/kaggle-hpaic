@@ -1,0 +1,57 @@
+{
+    "name": "5f_r34_512",
+    "device": "cuda",
+    "checkpoint_dir": "checkpoint",
+    "epochs": 80,
+    "img_h": 512,
+    "img_w": 512,
+    "aug": true,
+    "lr_patience": 3,
+    "lr_factor": 0.25,
+    "min_lr": 1e-7,
+    "stop_patience": 10,
+    "dataset": {
+        "root_dir": "../dataset/",
+        "filters": "rgb",
+        "subset": 1.0,
+        "random_state": 92
+    },
+    "sampler": {
+        "mode": "meanmax",
+        "weights": {
+            "scaling": "median",
+            "min_clip": null,
+            "max_clip": null,
+            "damping_r": null
+        }
+    },
+    "dataloader": {
+        "n_splits": 5,
+        "val_size": null,
+        "batch_size": 16,
+        "workers": 4,
+        "random_state": 92
+    },
+    "model": {
+        "name": "resnet34",
+        "dropout_p": 0.5
+    },
+    "criterion": {
+        "name": "bce",
+        "weights": {
+            "scaling": null,
+            "min_clip": null,
+            "max_clip": null,
+            "damping_r": null
+        }
+    },
+    "optim": {
+        "name": "adam",
+        "lr": 0.0005,
+        "weight_decay": 0
+    },
+    "load": {
+        "path": "checkpoint/5f_r34_224/",
+        "weights_only": true
+    }
+}

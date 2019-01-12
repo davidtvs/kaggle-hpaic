@@ -1,23 +1,23 @@
 {
-    "name": "example",
+    "name": "r50_512",
     "device": "cuda",
     "checkpoint_dir": "checkpoint",
-    "epochs": 30,
-    "img_h": 224,
-    "img_w": 224,
-    "aug": false,
-    "lr_patience": 3,
-    "lr_factor": 0.1,
-    "min_lr": 1e-6,
+    "epochs": 100,
+    "img_h": 512,
+    "img_w": 512,
+    "aug": true,
+    "lr_patience": 4,
+    "lr_factor": 0.2,
+    "min_lr": 1e-7,
     "stop_patience": 10,
     "dataset": {
         "root_dir": "../dataset/",
         "filters": "rgb",
-        "subset": 0.5,
+        "subset": 1.0,
         "random_state": 92
     },
     "sampler": {
-        "mode": "mean",
+        "mode": "meanmax",
         "weights": {
             "scaling": "median",
             "min_clip": null,
@@ -26,14 +26,14 @@
         }
     },
     "dataloader": {
-        "n_splits": 5,
-        "val_size": 0.2,
-        "batch_size": 16,
+        "n_splits": 1,
+        "val_size": 0.15,
+        "batch_size": 8,
         "workers": 4,
         "random_state": 92
     },
     "model": {
-        "name": "resnet34",
+        "name": "resnet50",
         "dropout_p": 0.5
     },
     "criterion": {
@@ -46,8 +46,8 @@
         }
     },
     "optim": {
-        "name": "adam",
-        "lr": 0.001,
+        "name": "sgd",
+        "lr": 0.2,
         "weight_decay": 0
     },
     "load": {

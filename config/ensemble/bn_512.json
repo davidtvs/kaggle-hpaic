@@ -1,0 +1,57 @@
+{
+    "name": "bn_512",
+    "device": "cuda",
+    "checkpoint_dir": "checkpoint",
+    "epochs": 100,
+    "img_h": 512,
+    "img_w": 512,
+    "aug": true,
+    "lr_patience": 4,
+    "lr_factor": 0.5,
+    "min_lr": 1e-7,
+    "stop_patience": 15,
+    "dataset": {
+        "root_dir": "../dataset/",
+        "filters": "rgb",
+        "subset": 1.0,
+        "random_state": 92
+    },
+    "sampler": {
+        "mode": "meanmax",
+        "weights": {
+            "scaling": "median",
+            "min_clip": null,
+            "max_clip": null,
+            "damping_r": null
+        }
+    },
+    "dataloader": {
+        "n_splits": 1,
+        "val_size": 0.15,
+        "batch_size": 24,
+        "workers": 4,
+        "random_state": 92
+    },
+    "model": {
+        "name": "bninception",
+        "dropout_p": 0.5
+    },
+    "criterion": {
+        "name": "bce",
+        "weights": {
+            "scaling": null,
+            "min_clip": null,
+            "max_clip": null,
+            "damping_r": null
+        }
+    },
+    "optim": {
+        "name": "adam",
+        "lr": 0.001,
+        "weight_decay": 0
+    },
+    "load": {
+        "path": null,
+        "weights_only": null
+    }
+}
