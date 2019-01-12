@@ -28,7 +28,7 @@ def arguments():
         "--source-csv",
         "-s",
         type=str,
-        default="../../dataset/HPAv18_train.csv",
+        default="HPAv18_train.csv",
         help=(
             "CSV containing the file names of the images to download and "
             "corresponding targets"
