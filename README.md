@@ -128,11 +128,11 @@ Pretraining 5-folds of ResNet50 (or SEResNet50) on lower resolution images, then
 
 ## Installation
 
-Dependencies:
+### Dependencies:
 - Python 3
 - pip
 
-Installation:
+### Installation:
 1. Clone the repository
    ```
    git clone https://github.com/davidtvs/kaggle-hpaic.git
@@ -141,3 +141,30 @@ Installation:
    ```
    pip install -r requirements.txt
    ```
+
+### Dataset:
+1. Download the dataset from Kaggle [here](https://www.kaggle.com/c/human-protein-atlas-image-classification/data)
+2. Navigate to the `scripts` folder
+3. Download the HPAv18 dataset as follows:
+    ```sh
+    python download_hpav18.py
+    ```
+    See the command-line arguments using the `-h` option.
+4. The images will be downloaded to the `scripts` directory by default. This behaviour can be changed by moving the `scripts/HPAv18_train.csv` file to the desired location.
+5. Zip the downloded images
+6. Place the kaggle files and the HPAv18 files in the same directory. The directory tree should look like this:
+    ```
+    .
+    ├── HPAv18_train.csv
+    ├── HPAv18_train.zip
+    ├── sample_submission.csv
+    ├── test.zip
+    ├── train.csv
+    └── train.zip
+    ```
+7. Run the following command to convert the zip files to HDF5:
+    ```sh
+    python kaggle_hpav18_hdf5.py -s path/to/source/directory -d path/to/destination/directory
+    ```
+    See the command-line arguments using the `-h` option
+8. (optional) The configuration files assume that the HDF5 files are in the following directory `../dataset/`.
