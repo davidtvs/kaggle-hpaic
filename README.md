@@ -128,11 +128,11 @@ Pretraining 5-folds of ResNet50 (or SEResNet50) on lower resolution images, then
 
 ## Installation
 
-### Dependencies:
+### Dependencies
 - Python 3
 - pip
 
-### Installation:
+### Installation
 1. Clone the repository
    ```
    git clone https://github.com/davidtvs/kaggle-hpaic.git
@@ -142,7 +142,7 @@ Pretraining 5-folds of ResNet50 (or SEResNet50) on lower resolution images, then
    pip install -r requirements.txt
    ```
 
-### Dataset:
+### Dataset
 1. Download the dataset from Kaggle [here](https://www.kaggle.com/c/human-protein-atlas-image-classification/data)
 2. Navigate to the `scripts` folder
 3. Download the HPAv18 dataset as follows:
