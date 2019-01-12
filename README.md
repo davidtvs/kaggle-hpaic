@@ -82,7 +82,7 @@ python ensemble_csv.py -d path/to/directory/
 
 ## A better single-model solution (score: 0.49204)
 
-A single ResNet50 that performs better than the ensemble above. This model wasn't selected as a final submission because it performed worse both in the validation set and the public leaderboard. Configuration:
+A single ResNet50 that performs better than the ensemble above. This model wasn't selected as a final submission because it performed worse both in the validation set and on the public leaderboard. Configuration:
 
 - **Models:** ResNet50
 - **Data:** kaggle and external data (HPA v18). Multilabel stratification using [iterative-stratification](https://github.com/trent-b/iterative-stratification) to create the data splits for the validation and folds
@@ -150,8 +150,8 @@ Pretraining 5-folds of ResNet50 (or SEResNet50) on lower resolution images, then
     python download_hpav18.py
     ```
     See the command-line arguments using the `-h` option.
-4. The images will be downloaded to the `scripts` directory by default. This behaviour can be changed by moving the `scripts/HPAv18_train.csv` file to the desired location.
-5. Zip the downloded images
+4. The images will be downloaded to the `scripts` directory by default. This behavior can be changed by moving the `scripts/HPAv18_train.csv` file to the desired location.
+5. Zip the downloaded images
 6. Place the kaggle files and the HPAv18 files in the same directory. The directory tree should look like this:
     ```
     .
