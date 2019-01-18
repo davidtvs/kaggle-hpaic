@@ -175,7 +175,12 @@ if __name__ == "__main__":
         print("Weights only:", load_cfg["weights_only"])
         ktrainer.load_checkpoint(load_cfg["path"], load_cfg["weights_only"])
 
-    scores = ktrainer.fit(train_loaders, val_loaders, output_fn=utils.sigmoid_threshold)
+    scores = ktrainer.fit(
+        train_loaders,
+        val_loaders,
+        accumulation_steps=config["accumulation_steps"],
+        output_fn=utils.sigmoid_threshold,
+    )
 
     if dl_cfg["n_splits"] > 1:
         # Compute the cross-validation score (average of all folds)

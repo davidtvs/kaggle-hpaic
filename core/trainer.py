@@ -67,13 +67,20 @@ class Trainer:
         self.metric_history = {"train": [], "val": []}
 
     def fit(
-        self, train_dataloader, val_dataloader, output_fn=None, ret_checkpoint=False
+        self,
+        train_dataloader,
+        val_dataloader,
+        accumulation_steps=1,
+        output_fn=None,
+        ret_checkpoint=False,
     ):
         """Fit the model given training and validation data.
 
         Arguments:
             train_dataloader (array-like): training set data loader.
             val_dataloader (array-like): validation set data loader.
+            accumulation_steps (int): number of steps used for gradient accumulation.
+                Default: 1.
             output_fn (function, optional): a function to convert the model output into
                 predictions. When set to `None`, the predictions are the same as the
                 model output. Default: None.
@@ -93,7 +100,10 @@ class Trainer:
             print("-" * 80)
             print("Training")
             epoch_loss = self._run_epoch(
-                train_dataloader, is_training=True, output_fn=output_fn
+                train_dataloader,
+                is_training=True,
+                accumulation_steps=accumulation_steps,
+                output_fn=output_fn,
             )
             print("Loss: {:.4f}".format(epoch_loss))
             print("Metrics: {}".format(self.metrics))
@@ -116,7 +126,7 @@ class Trainer:
             checkpoint_path = os.path.join(self.checkpoint_dir, "model.pth")
             return torch.load(checkpoint_path, map_location=torch.device("cpu"))
 
-    def _run_epoch(self, dataloader, is_training, output_fn=None):
+    def _run_epoch(self, dataloader, is_training, accumulation_steps=1, output_fn=None):
         # Set model to training mode if training; otherwise, set it to evaluation mode
         if is_training:
             self.model.train()
@@ -137,11 +147,30 @@ class Trainer:
             targets = batch_dict["target"]
             targets = targets.to(self.device)
 
-            # Run a single iteration
-            step_loss = self._run_step(
-                inputs, targets, is_training, output_fn=output_fn
-            )
-            running_loss += step_loss
+            # Disable autograd if not training
+            with torch.set_grad_enabled(is_training):
+                outputs = self.model(inputs)
+                loss = self.criterion(outputs, targets) / accumulation_steps
+                loss.backward()
+
+                # Backward only if training
+                if is_training and (
+                    (step + 1) % accumulation_steps == 0 or step + 1 == len(dataloader)
+                ):
+                    self.optimizer.step()
+                    self.optimizer.zero_grad()
+
+                # Apply the output function to the model output (e.g. to convert from
+                # logits to predictions)
+                outputs = outputs.detach()
+                if output_fn is not None:
+                    outputs = output_fn(outputs)
+
+            # Keep track of loss and metrics. The loss is multipliedby the size of the
+            # batch bacause it's later divided by the number of samples
+            batch_loss = loss.item() * inputs.size(0)
+            self.metrics.add(outputs, targets)
+            running_loss += batch_loss
 
         epoch_loss = running_loss / len(dataloader.dataset)
 
@@ -158,33 +187,6 @@ class Trainer:
             self.trainer_checkpoint.step(metric_val, self.state_dict())
 
         return epoch_loss
-
-    def _run_step(self, inputs, targets, is_training, output_fn=None):
-        # Zero the parameter gradients
-        self.optimizer.zero_grad()
-
-        # Forward
-        # Track history only if training
-        with torch.set_grad_enabled(is_training):
-            outputs = self.model(inputs)
-            loss = self.criterion(outputs, targets)
-
-            # Backward only if training
-            if is_training:
-                loss.backward()
-                self.optimizer.step()
-
-            # Apply the output function to the model output (e.g. to convert from logits
-            # to predictions)
-            outputs = outputs.detach()
-            if output_fn is not None:
-                outputs = output_fn(outputs)
-
-        # Statistics
-        loss = loss.item() * inputs.size(0)
-        self.metrics.add(outputs, targets)
-
-        return loss
 
     def state_dict(self):
         # Make sure the model is in training mode to save the state of layers like
@@ -262,12 +264,21 @@ class KFoldTrainer(object):
         self.trainers = []
         self.resume = False
 
-    def fit(self, train_loaders, val_loaders, output_fn=None, ret_checkpoints=False):
+    def fit(
+        self,
+        train_loaders,
+        val_loaders,
+        accumulation_steps=1,
+        output_fn=None,
+        ret_checkpoints=False,
+    ):
         """Fit the model given training and validation data.
 
         Arguments:
             train_loaders (array-like): k training dataloaders.
             val_loaders (array-like): k validation dataloaders.
+            accumulation_steps (int): number of steps used for gradient accumulation.
+                Default: 1.
             output_fn (function, optional): a function to convert the model output into
                 predictions. When set to `None`, the predictions are the same as the
                 model output. Default: None.
@@ -314,8 +325,13 @@ class KFoldTrainer(object):
                 # scratch
                 self.trainers.append(self._new_trainer(k + 1))
 
+            print(accumulation_steps)
             checkpoint = self.trainers[k].fit(
-                train_loader, val_loader, output_fn=output_fn, ret_checkpoint=True
+                train_loader,
+                val_loader,
+                accumulation_steps=accumulation_steps,
+                output_fn=output_fn,
+                ret_checkpoint=True,
             )
             scores_train.append(checkpoint["metric"]["train"][-1].value())
             scores_val.append(checkpoint["metric"]["val"][-1].value())
