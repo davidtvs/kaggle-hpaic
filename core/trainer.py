@@ -151,14 +151,15 @@ class Trainer:
             with torch.set_grad_enabled(is_training):
                 outputs = self.model(inputs)
                 loss = self.criterion(outputs, targets) / accumulation_steps
-                loss.backward()
 
                 # Backward only if training
-                if is_training and (
-                    (step + 1) % accumulation_steps == 0 or step + 1 == len(dataloader)
-                ):
-                    self.optimizer.step()
-                    self.optimizer.zero_grad()
+                if is_training:
+                    loss.backward()
+                    if (step + 1) % accumulation_steps == 0 or step + 1 == len(
+                        dataloader
+                    ):
+                        self.optimizer.step()
+                        self.optimizer.zero_grad()
 
                 # Apply the output function to the model output (e.g. to convert from
                 # logits to predictions)
@@ -166,11 +167,11 @@ class Trainer:
                 if output_fn is not None:
                     outputs = output_fn(outputs)
 
-            # Keep track of loss and metrics. The loss is multipliedby the size of the
+            # Keep track of loss and metrics. The loss is multiplied by the size of the
             # batch bacause it's later divided by the number of samples
-            batch_loss = loss.item() * inputs.size(0)
-            self.metrics.add(outputs, targets)
+            batch_loss = loss.item() * inputs.size(0) * accumulation_steps
             running_loss += batch_loss
+            self.metrics.add(outputs, targets)
 
         epoch_loss = running_loss / len(dataloader.dataset)
 
@@ -325,7 +326,6 @@ class KFoldTrainer(object):
                 # scratch
                 self.trainers.append(self._new_trainer(k + 1))
 
-            print(accumulation_steps)
             checkpoint = self.trainers[k].fit(
                 train_loader,
                 val_loader,
