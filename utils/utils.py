@@ -81,6 +81,14 @@ def get_model(name, num_classes, dropout_p):
         net = model.bninception(num_classes, dropout_p=dropout_p)
     elif name == "se_resnet50":
         net = model.se_resnet50(num_classes, dropout_p=dropout_p)
+    elif name == "densenet121":
+        net = model.densenet121(num_classes, dropout_p=dropout_p)
+    elif name == "densenet161":
+        net = model.densenet161(num_classes, dropout_p=dropout_p)
+    elif name == "densenet169":
+        net = model.densenet169(num_classes, dropout_p=dropout_p)
+    elif name == "densenet201":
+        net = model.densenet201(num_classes, dropout_p=dropout_p)
     else:
         raise ValueError("invalid model: {}".format(name))
 
